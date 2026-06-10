@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新闻联播 知识图谱</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --text: #e1e4e8; --text2: #8b90a0;
+  --accent: #4f8ff7; --radius: 8px;
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
+header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+  padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+  background: linear-gradient(180deg, var(--bg) 60%, transparent);
+  pointer-events: none;
+}
+header > * { pointer-events: auto; }
+header h1 { font-size: 1.3rem; font-weight: 700; }
+.back-link { color: var(--text2); text-decoration: none; font-size: 0.85rem; }
+.back-link:hover { color: var(--text); }
+.legend { display: flex; gap: 12px; margin-left: auto; font-size: 0.75rem; }
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+#graph { width: 100vw; height: 100vh; }
+.tooltip {
+  position: fixed; pointer-events: none; z-index: 100;
+  background: var(--surface); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius); padding: 10px 14px; font-size: 0.82rem;
+  max-width: 300px; opacity: 0; transition: opacity .15s;
+}
+.tooltip .label { font-weight: 600; margin-bottom: 4px; }
+.tooltip .info { color: var(--text2); font-size: 0.75rem; }
+.controls {
+  position: fixed; bottom: 20px; right: 20px; z-index: 10;
+  display: flex; gap: 8px;
+}
+.controls button {
+  padding: 6px 14px; border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 20px; background: var(--surface); color: var(--text2);
+  cursor: pointer; font-size: 0.8rem; font-family: var(--font);
+  transition: all .2s;
+}
+.controls button:hover { border-color: var(--accent); color: var(--text); }
+.controls button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text2); font-size: 1.1rem; }
+</style>
+</head>
+<body>
+<header>
+  <a href="index.html" class="back-link">← 返回仪表板</a>
+  <h1>新闻联播 知识图谱</h1>
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#4f8ff7"></span>新闻</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#e74c3c"></span>人物</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span>机构</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#f39c12"></span>主题</span>
+  </div>
+</header>
+
+<svg id="graph"></svg>
+<div class="tooltip" id="tooltip"></div>
+
+<div class="controls">
+  <button onclick="filterType('all')" id="btn-all" class="active">全部</button>
+  <button onclick="filterType('person')" id="btn-person">人物</button>
+  <button onclick="filterType('org')" id="btn-org">机构</button>
+  <button onclick="filterType('topic')" id="btn-topic">主题</button>
+  <button onclick="filterType('news')" id="btn-news">新闻</button>
+</div>
+
+<script>
+const colors = { news: '#4f8ff7', person: '#e74c3c', org: '#2ecc71', topic: '#f39c12' };
+const sizes = { news: 4, person: 7, org: 6, topic: 8 };
+
+let graphData, simulation, svg, g, zoom;
+
+async function loadGraph() {
+  const resp = await fetch('../data/graph.json');
+  if (!resp.ok) throw new Error('graph.json not found. Run: cd db && python3 export_graph.py');
+  return resp.json();
+}
+
+function initSVG() {
+  svg = d3.select('#graph');
+  const w = window.innerWidth, h = window.innerHeight;
+  svg.attr('viewBox', [0, 0, w, h]);
+  g = svg.append('g');
+
+  zoom = d3.zoom().scaleExtent([0.15, 5]).on('zoom', (e) => g.attr('transform', e.transform));
+  svg.call(zoom);
+
+  return { w, h };
+}
+
+function runSimulation(data, w, h) {
+  const nodes = data.nodes.map(d => ({ ...d }));
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const edges = data.edges.filter(e => nodeMap.has(e.source) && nodeMap.has(e.target));
+
+  simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(edges).id(d => d.id).distance(d => d.type === 'co_occur' ? 30 : 60))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(w / 2, h / 2))
+    .force('collision', d3.forceCollide().radius(d => sizes[d.type] + 5));
+
+  // Links
+  const link = g.append('g').selectAll('line')
+    .data(edges).join('line')
+    .attr('stroke', d => d.type === 'co_occur' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.06)')
+    .attr('stroke-width', d => d.type === 'co_occur' ? Math.min(d.weight, 3) : 0.5);
+
+  // Nodes
+  const node = g.append('g').selectAll('circle')
+    .data(nodes).join('circle')
+    .attr('r', d => sizes[d.type] || 5)
+    .attr('fill', d => colors[d.type] || '#888')
+    .attr('stroke', d => d3.color(colors[d.type]).brighter(0.5))
+    .attr('stroke-width', 1)
+    .attr('opacity', d => d.type === 'news' ? 0.3 : 0.8)
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+  // Labels (only for non-news nodes)
+  const label = g.append('g').selectAll('text')
+    .data(nodes.filter(d => d.type !== 'news')).join('text')
+    .text(d => d.label.length > 8 ? d.label.substring(0, 8) + '…' : d.label)
+    .attr('font-size', d => d.type === 'topic' ? 11 : 9)
+    .attr('fill', '#ccc')
+    .attr('text-anchor', 'middle')
+    .attr('dy', d => sizes[d.type] + 12);
+
+  // Tooltip
+  const tooltip = d3.select('#tooltip');
+  node.on('mouseenter', (e, d) => {
+    tooltip.style('opacity', 1)
+      .html(`<div class="label">${d.label}</div>
+             <div class="info">${d.type}${d.date ? ' · ' + d.date : ''}${d.count ? ' · ' + d.count + '次' : ''}</div>`);
+  }).on('mousemove', (e) => {
+    tooltip.style('left', (e.pageX + 12) + 'px').style('top', (e.pageY - 10) + 'px');
+  }).on('mouseleave', () => tooltip.style('opacity', 0));
+
+  simulation.on('tick', () => {
+    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('cx', d => d.x).attr('cy', d => d.y);
+    label.attr('x', d => d.x).attr('y', d => d.y);
+  });
+
+  return { node, label };
+}
+
+function filterType(type) {
+  document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + type).classList.add('active');
+
+  if (type === 'all') {
+    g.selectAll('circle').attr('opacity', d => d.type === 'news' ? 0.3 : 0.8);
+    g.selectAll('text').style('opacity', 1);
+    g.selectAll('line').style('opacity', 0.5);
+  } else {
+    g.selectAll('circle').attr('opacity', d => d.type === type ? 1 : 0.05);
+    g.selectAll('text').style('opacity', d => d.type === type ? 1 : 0);
+    g.selectAll('line').style('opacity', 0.02);
+  }
+}
+
+async function init() {
+  try {
+    graphData = await loadGraph();
+    document.querySelector('.loading')?.remove();
+    const { w, h } = initSVG();
+    runSimulation(graphData, w, h);
+  } catch (err) {
+    document.body.innerHTML = `<div class="loading">${err.message}</div>`;
+  }
+}
+
+window.addEventListener('resize', () => {
+  if (svg) svg.attr('viewBox', [0, 0, window.innerWidth, window.innerHeight]);
+});
+
+init();
+</script>
+</body>
+</html>
