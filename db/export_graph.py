@@ -3,6 +3,7 @@
 
 import json, sqlite3
 from pathlib import Path
+from collections import defaultdict
 
 DB_PATH = Path(__file__).resolve().parent / "xinwenlianbo.db"
 OUT_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -21,6 +22,42 @@ def connect_db():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = dict_factory
     return conn
+
+
+def compute_pagerank(nodes, edges, iterations=30, damping=0.85):
+    """Simple PageRank algorithm. Returns dict of node_id → score (0-1 normalized)."""
+    node_ids = {n["id"] for n in nodes}
+    # Build adjacency: outgoing links per node
+    out_links = defaultdict(set)
+    in_links = defaultdict(set)
+    for e in edges:
+        src, tgt = e["source"], e["target"]
+        if src in node_ids and tgt in node_ids:
+            out_links[src].add(tgt)
+            in_links[tgt].add(src)
+
+    N = len(nodes)
+    pr = {n["id"]: 1.0 / N for n in nodes}
+
+    for _ in range(iterations):
+        new_pr = {}
+        for n in nodes:
+            nid = n["id"]
+            rank = (1 - damping) / N
+            for src in in_links.get(nid, set()):
+                out_count = len(out_links.get(src, set()))
+                if out_count > 0:
+                    rank += damping * pr[src] / out_count
+            new_pr[nid] = rank
+        pr = new_pr
+
+    # Normalize to 0-1 range
+    max_pr = max(pr.values()) if pr else 1
+    min_pr = min(pr.values()) if pr else 0
+    if max_pr > min_pr:
+        for k in pr:
+            pr[k] = (pr[k] - min_pr) / (max_pr - min_pr)
+    return pr
 
 
 def build_graph(conn):
@@ -148,6 +185,11 @@ def build_graph(conn):
             "type": "co_occur",
             "weight": r["weight"],
         })
+
+    # Compute PageRank and attach to nodes
+    pr = compute_pagerank(nodes, edges)
+    for n in nodes:
+        n["pagerank"] = round(pr.get(n["id"], 0), 4)
 
     return {"nodes": nodes, "edges": edges}
 
