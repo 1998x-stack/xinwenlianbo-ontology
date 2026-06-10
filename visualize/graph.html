@@ -111,8 +111,12 @@ function runSimulation(data, w, h) {
   // Links
   const link = g.append('g').selectAll('line')
     .data(edges).join('line')
-    .attr('stroke', d => d.type === 'co_occur' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.06)')
-    .attr('stroke-width', d => d.type === 'co_occur' ? Math.min(d.weight, 3) : 0.5);
+    .attr('stroke', d => {
+      if (d.type === 'co_occur') return 'rgba(231,76,60,0.3)';
+      if (d.type === 'about') return 'rgba(243,156,18,0.15)';
+      return 'rgba(255,255,255,0.12)';
+    })
+    .attr('stroke-width', d => d.type === 'co_occur' ? Math.min(d.weight, 3) : 0.6);
 
   // Nodes
   const node = g.append('g').selectAll('circle')
@@ -163,11 +167,11 @@ function filterType(type) {
   if (type === 'all') {
     g.selectAll('circle').attr('opacity', d => d.type === 'news' ? 0.3 : 0.8);
     g.selectAll('text').style('opacity', 1);
-    g.selectAll('line').style('opacity', 0.5);
+    g.selectAll('line').style('opacity', 0.6);
   } else {
     g.selectAll('circle').attr('opacity', d => d.type === type ? 1 : 0.05);
     g.selectAll('text').style('opacity', d => d.type === type ? 1 : 0);
-    g.selectAll('line').style('opacity', 0.02);
+    g.selectAll('line').style('opacity', 0.04);
   }
 }
 
