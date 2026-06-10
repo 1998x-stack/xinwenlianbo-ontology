@@ -171,3 +171,74 @@ def compare_coverage(conn: sqlite3.Connection, person_names: list[str]) -> dict:
         """, (name, name, f"%{name}%"))
         result[name] = _rows_to_dicts(cursor.fetchall())
     return result
+
+
+# ── Phase 2: Event Queries ──────────────────────────────────────────
+
+def list_events(conn, status=None, importance=None, limit=20):
+    """List events, optionally filtered by status or importance."""
+    sql = """SELECT e.*,
+             (SELECT COUNT(*) FROM news_event_link nel WHERE nel.event_id = e.event_id) as item_count
+             FROM news_event e WHERE 1=1"""
+    params = []
+    if status:
+        sql += " AND e.status = ?"
+        params.append(status)
+    if importance:
+        sql += " AND e.importance = ?"
+        params.append(importance)
+    sql += " ORDER BY e.heat_score DESC LIMIT ?"
+    params.append(limit)
+    return _rows_to_dicts(conn.execute(sql, params).fetchall())
+
+
+def get_event_detail(conn, event_id):
+    """Full event profile with linked items, actors, and related events."""
+    event = conn.execute("SELECT * FROM news_event WHERE event_id = ?", (event_id,)).fetchone()
+    if not event:
+        return {"event": None}
+
+    items = _rows_to_dicts(conn.execute("""
+        SELECT n.news_id, n.title, n.broadcast_date, n.summary
+        FROM news_item n
+        JOIN news_event_link nel ON n.news_id = nel.news_id
+        WHERE nel.event_id = ? ORDER BY n.broadcast_date
+    """, (event_id,)).fetchall())
+
+    persons = _rows_to_dicts(conn.execute("""
+        SELECT p.name_chinese, ep.role FROM person p
+        JOIN event_person ep ON p.person_id = ep.person_id
+        WHERE ep.event_id = ? AND ep.role = 'primary_actor' LIMIT 10
+    """, (event_id,)).fetchall())
+
+    related = _rows_to_dicts(conn.execute("""
+        SELECT e.event_id, e.name, e.importance, er.similarity_score, er.relation_type
+        FROM news_event e
+        JOIN event_relation er ON e.event_id = er.target_event_id
+        WHERE er.source_event_id = ? ORDER BY er.similarity_score DESC LIMIT 5
+    """, (event_id,)).fetchall())
+
+    return {
+        "event": dict(event),
+        "items": items,
+        "key_actors": persons,
+        "related_events": related,
+    }
+
+
+def list_emerging_events(conn, lookback_days=3, limit=10):
+    """Find events with accelerating coverage in recent days."""
+    from datetime import datetime, timedelta
+    cutoff = (datetime.now() - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+
+    return _rows_to_dicts(conn.execute("""
+        SELECT e.*,
+               (SELECT COUNT(*) FROM news_event_link nel
+                JOIN news_item n ON nel.news_id = n.news_id
+                WHERE nel.event_id = e.event_id AND n.broadcast_date >= ?) as recent_count
+        FROM news_event e
+        WHERE e.status IN ('emerging', 'developing')
+          AND e.last_date >= ?
+        ORDER BY e.heat_score DESC
+        LIMIT ?
+    """, (cutoff, cutoff, limit)).fetchall())

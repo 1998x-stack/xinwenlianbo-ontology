@@ -22,6 +22,7 @@ sys.path.insert(0, str(DB_DIR))
 import queries
 from import_data import import_data as run_import
 from enhance import enhance_all, enhance_news_item, persist_enhancement, analyze_topic_evolution
+from event_engine import run_event_pipeline, generate_event_report
 
 DB_PATH = DB_DIR / "xinwenlianbo.db"
 SCHEMA_PATH = DB_DIR / "schema.sql"
@@ -256,6 +257,99 @@ def cmd_analyze_topic(topic_name):
         conn.close()
 
 
+def cmd_events():
+    """List events."""
+    if not DB_PATH.exists():
+        print("Database not found.")
+        return
+    conn = _get_connection()
+    try:
+        status = None
+        importance = None
+        for arg in sys.argv[2:]:
+            if arg.startswith("--status="):
+                status = arg.split("=")[1]
+            elif arg.startswith("--importance="):
+                importance = arg.split("=")[1]
+        events = queries.list_events(conn, status=status, importance=importance)
+        if not events:
+            print("No events found. Run: python main.py detect-events")
+            return
+        print(f"Events: {len(events)}\n")
+        for e in events:
+            bar = "█" * min(int((e['heat_score'] or 0) / 5), 20)
+            print(f"  [{e['importance']:<10s}] {e['name'][:60]}")
+            print(f"    Status: {e['status']:<12s} Heat: {e['heat_score']:.0f} Items: {e['item_count']}")
+            print(f"    {e['first_date']} -> {e['last_date']}  {bar}")
+            print()
+    finally:
+        conn.close()
+
+
+def cmd_event_detail(event_id):
+    """Show full event profile."""
+    conn = _get_connection()
+    try:
+        detail = queries.get_event_detail(conn, event_id)
+        if not detail["event"]:
+            print(f"Event not found: {event_id}")
+            return
+        e = detail["event"]
+        print(f"Event: {e['name']}")
+        print(f"  Type: {e['type']:<15s} Importance: {e['importance']}")
+        print(f"  Status: {e['status']:<12s} Heat: {e['heat_score']:.0f}")
+        print(f"  Timeline: {e['first_date']} -> {e['last_date']} ({len(detail['items'])} items)")
+        if e['summary']:
+            print(f"\n  Summary: {e['summary']}")
+        if detail["key_actors"]:
+            print("\n  Key Actors:")
+            for a in detail["key_actors"]:
+                print(f"    {a['name_chinese']} ({a['role']})")
+        if detail["related_events"]:
+            print("\n  Related Events:")
+            for r in detail["related_events"]:
+                print(f"    [{r['importance']}] {r['name'][:50]}")
+        if detail["items"]:
+            print("\n  Timeline:")
+            for it in detail["items"][:10]:
+                print(f"    [{it['broadcast_date']}] {it['title'][:60]}")
+    finally:
+        conn.close()
+
+
+def cmd_detect_events():
+    """Run event detection pipeline."""
+    if not DB_PATH.exists():
+        print("Database not found.")
+        return
+    try:
+        stats = run_event_pipeline(str(DB_PATH), concurrency=3)
+        print(f"\nPipeline done: {stats}")
+        from export_jsonl import main as export_main
+        export_main()
+        print("Export complete.")
+    except RuntimeError as e:
+        if "DEEPSEEK_API_KEY" in str(e):
+            print("Error: DEEPSEEK_API_KEY not set.")
+        else:
+            raise
+
+
+def cmd_event_report(event_id):
+    """Generate AI event report."""
+    conn = _get_connection()
+    try:
+        report = generate_event_report(conn, event_id)
+        print(report)
+    except RuntimeError as e:
+        if "DEEPSEEK_API_KEY" in str(e):
+            print("AI report unavailable: DEEPSEEK_API_KEY not set.")
+        else:
+            raise
+    finally:
+        conn.close()
+
+
 def print_usage():
     print(__doc__)
 
@@ -274,6 +368,10 @@ def main():
     elif cmd == "network" and len(sys.argv) > 2: cmd_network(sys.argv[2])
     elif cmd == "enhance": cmd_enhance()
     elif cmd == "analyze-topic" and len(sys.argv) > 2: cmd_analyze_topic(sys.argv[2])
+    elif cmd == "events": cmd_events()
+    elif cmd == "event" and len(sys.argv) > 2: cmd_event_detail(sys.argv[2])
+    elif cmd == "detect-events": cmd_detect_events()
+    elif cmd == "event-report" and len(sys.argv) > 2: cmd_event_report(sys.argv[2])
     elif cmd in ("-h", "--help"): print_usage()
     else: print_usage(); sys.exit(1)
 
