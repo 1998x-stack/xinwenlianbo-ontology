@@ -37,6 +37,12 @@ def detect_events(conn, time_window_days=7, min_items=2):
     that share at least 1 topic. Group connected components as events.
     Returns list of (event_name_hint, [news_ids]) tuples.
     """
+    # Exclude super-connector topics (top N by frequency) from adjacency
+    top_topics = conn.execute(
+        "SELECT topic_id FROM topic ORDER BY article_count DESC LIMIT 3"
+    ).fetchall()
+    excluded = set(r["topic_id"] for r in top_topics)
+
     rows = conn.execute("""
         SELECT n.news_id, n.broadcast_date, n.title
         FROM news_item n
@@ -45,7 +51,8 @@ def detect_events(conn, time_window_days=7, min_items=2):
 
     topic_vectors = {}
     for r in rows:
-        topic_vectors[r["news_id"]] = _compute_topic_vector(conn, r["news_id"])
+        full = _compute_topic_vector(conn, r["news_id"])
+        topic_vectors[r["news_id"]] = full - excluded  # only specific topics
 
     date_map = {r["news_id"]: r["broadcast_date"] for r in rows}
     adjacency = defaultdict(set)
@@ -60,7 +67,7 @@ def detect_events(conn, time_window_days=7, min_items=2):
             if abs(_days_between(d1, d2)) > time_window_days:
                 continue
             v2 = topic_vectors.get(r2["news_id"], set())
-            if v1 & v2:
+            if v1 & v2:  # share at least 1 specific topic
                 adjacency[r1["news_id"]].add(r2["news_id"])
                 adjacency[r2["news_id"]].add(r1["news_id"])
 
