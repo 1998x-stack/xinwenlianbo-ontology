@@ -128,6 +128,66 @@ def export_dates(conn):
     print(f"Exported {len(out)} dates to {out_path}")
 
 
+# ---------------------------------------------------------------------------
+# Events  (events.json) — Phase 2
+# ---------------------------------------------------------------------------
+
+def export_events(conn):
+    """Export events with linked items, actors, and relations for dashboard."""
+    rows = conn.execute("""
+        SELECT * FROM news_event ORDER BY heat_score DESC
+    """).fetchall()
+
+    out = []
+    for row in rows:
+        eid = row["event_id"]
+
+        items = conn.execute("""
+            SELECT n.news_id, n.title, n.broadcast_date
+            FROM news_item n
+            JOIN news_event_link nel ON n.news_id = nel.news_id
+            WHERE nel.event_id = ? ORDER BY n.broadcast_date
+        """, (eid,)).fetchall()
+        event_items = [{"news_id": r["news_id"], "title": r["title"], "date": r["broadcast_date"]} for r in items]
+
+        persons = conn.execute("""
+            SELECT p.name_chinese, ep.role FROM person p
+            JOIN event_person ep ON p.person_id = ep.person_id
+            WHERE ep.event_id = ? AND ep.role = 'primary_actor' LIMIT 10
+        """, (eid,)).fetchall()
+        event_persons = [{"name": r["name_chinese"], "role": r["role"]} for r in persons]
+
+        related = conn.execute("""
+            SELECT e.event_id, e.name, er.similarity_score, er.relation_type
+            FROM news_event e
+            JOIN event_relation er ON e.event_id = er.target_event_id
+            WHERE er.source_event_id = ? ORDER BY er.similarity_score DESC LIMIT 5
+        """, (eid,)).fetchall()
+        event_related = [{"event_id": r["event_id"], "name": r["name"], "similarity": r["similarity_score"], "type": r["relation_type"]} for r in related]
+
+        out.append({
+            "event_id": eid,
+            "name": row["name"],
+            "type": row["type"],
+            "importance": row["importance"],
+            "status": row["status"],
+            "first_date": row["first_date"],
+            "last_date": row["last_date"],
+            "news_count": row["news_count"],
+            "summary": row["summary"],
+            "heat_score": row["heat_score"],
+            "items": event_items,
+            "key_persons": event_persons,
+            "related_events": event_related,
+        })
+
+    out_path = OUT_DIR / "events.json"
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
+    print(f"Exported {len(out)} events to {out_path}")
+    return out
+
+
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     conn = connect_db()
@@ -135,6 +195,7 @@ def main():
         export_news_items(conn)
         export_topics(conn)
         export_dates(conn)
+        export_events(conn)
     finally:
         conn.close()
 
