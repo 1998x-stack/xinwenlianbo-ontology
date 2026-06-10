@@ -273,6 +273,26 @@ def enhance_all(conn, limit=0, dry_run=False, concurrency=3):
                     print(f"[{done_count}/{len(items)}] {nid}: {title[:50]}...")
                     print(f"  ERROR: {e}")
 
+    # Recalculate derived counts (concurrent inserts don't update them)
+    main_conn = sqlite3.connect(db_path)
+    main_conn.execute("""
+        UPDATE topic SET article_count = (
+            SELECT COUNT(*) FROM news_topic WHERE news_topic.topic_id = topic.topic_id
+        )
+    """)
+    main_conn.execute("""
+        UPDATE person SET article_count = (
+            SELECT COUNT(*) FROM news_person WHERE news_person.person_id = person.person_id
+        )
+    """)
+    main_conn.execute("""
+        UPDATE organization SET article_count = (
+            SELECT COUNT(*) FROM news_organization WHERE news_organization.org_id = organization.org_id
+        )
+    """)
+    main_conn.commit()
+    main_conn.close()
+
     # Final export
     try:
         from export_jsonl import main as _export
