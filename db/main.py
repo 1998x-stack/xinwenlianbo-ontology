@@ -201,6 +201,7 @@ def cmd_enhance():
     conn = _get_connection()
     limit = 0
     dry_run = False
+    concurrency = 3
     args = sys.argv[2:]
     i = 0
     while i < len(args):
@@ -210,13 +211,19 @@ def cmd_enhance():
             except ValueError:
                 pass
             i += 2
+        elif args[i] == "--concurrency" and i + 1 < len(args):
+            try:
+                concurrency = int(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
         elif args[i] == "--dry-run":
             dry_run = True
             i += 1
         else:
             i += 1
     try:
-        stats = enhance_all(conn, limit=limit, dry_run=dry_run)
+        stats = enhance_all(conn, limit=limit, dry_run=dry_run, concurrency=concurrency)
         print(f"Done: {stats}")
     except RuntimeError as e:
         if "DEEPSEEK_API_KEY" in str(e):

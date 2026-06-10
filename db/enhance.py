@@ -3,7 +3,8 @@ AI-powered enhancements for the xinwenlianbo ontology database.
 Uses DeepSeek API (deepseek-v4-flash) to extract structured data from news items:
 summaries, keywords, topic classification, named entities, and policy signals.
 """
-import sqlite3, json, time
+import sqlite3, json, time, threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pypinyin import lazy_pinyin, Style
 from ai_client import chat, chat_json
 
@@ -189,16 +190,43 @@ def persist_enhancement(conn, news_id, result):
     return True
 
 
-def enhance_all(conn, limit=0, dry_run=False):
-    """Enhance all un-enhanced news items. Idempotent — skips items with summaries.
-    Pre-exports JSONL before enhancement so Pages always has complete data."""
-    # Pre-export: ensure Pages has current data even if enhancement fails partway
+def _enhance_one(db_path, nid, title, text):
+    """Process a single news item in its own thread with its own DB connection."""
+    if not text or len(text) < 50:
+        return {"status": "skipped"}
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        result = enhance_news_item(conn, nid, title, text)
+        if not result:
+            return {"status": "failed", "reason": "no response"}
+        ok = persist_enhancement(conn, nid, result)
+        conn.commit()
+        if not ok:
+            return {"status": "failed", "reason": "no summary"}
+        return {
+            "status": "enhanced",
+            "keywords": len(result.get("keywords", [])),
+            "topics": len(result.get("topics", [])),
+            "signals": len(result.get("policy_signals", [])),
+        }
+    finally:
+        conn.close()
+
+
+_print_lock = threading.Lock()
+
+
+def enhance_all(conn, limit=0, dry_run=False, concurrency=3):
+    """Enhance all un-enhanced news items concurrently. Idempotent."""
+    # Pre-export for Pages
     try:
         from export_jsonl import main as _export
         _export()
     except Exception:
         pass
 
+    db_path = str(conn.execute("PRAGMA database_list").fetchone()[2])
     cursor = conn.execute(
         "SELECT news_id, title, full_text FROM news_item "
         "WHERE summary IS NULL OR summary = '' "
@@ -206,32 +234,52 @@ def enhance_all(conn, limit=0, dry_run=False):
     )
     items = cursor.fetchall()
     stats = {"total": len(items), "enhanced": 0, "failed": 0, "skipped": 0}
+    done_count = 0
 
-    for i, (nid, title, text) in enumerate(items):
-        if not text or len(text) < 50:
-            stats["skipped"] += 1
-            continue
-        print(f"[{i+1}/{len(items)}] {nid}: {title[:50]}...")
-        if dry_run:
-            stats["skipped"] += 1
-            continue
-        result = enhance_news_item(conn, nid, title, text)
-        if not result:
-            stats["failed"] += 1
-            print("  FAILED (no response)")
-            continue
-        ok = persist_enhancement(conn, nid, result)
-        conn.commit()
-        if not ok:
-            stats["failed"] += 1
-            print("  FAILED (no summary)")
-            continue
-        stats["enhanced"] += 1
-        nk = len(result.get("keywords", []))
-        nt = len(result.get("topics", []))
-        ns = len(result.get("policy_signals", []))
-        print(f"  OK - {nk} keywords, {nt} topics, {ns} signals")
-        time.sleep(0.5)
+    if dry_run:
+        for nid, title, text in items:
+            print(f"  [DRY RUN] {nid}: {title[:50]}...")
+        stats["skipped"] = len(items)
+        return stats
+
+    print(f"Processing {len(items)} items with concurrency={concurrency}...")
+
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        futures = {
+            executor.submit(_enhance_one, db_path, nid, title, text): (nid, title)
+            for nid, title, text in items
+        }
+        for future in as_completed(futures):
+            nid, title = futures[future]
+            done_count += 1
+            try:
+                result = future.result()
+                status = result["status"]
+                if status == "enhanced":
+                    stats["enhanced"] += 1
+                    with _print_lock:
+                        print(f"[{done_count}/{len(items)}] {nid}: {title[:50]}...")
+                        print(f"  OK - {result['keywords']} keywords, {result['topics']} topics, {result['signals']} signals")
+                elif status == "failed":
+                    stats["failed"] += 1
+                    with _print_lock:
+                        print(f"[{done_count}/{len(items)}] {nid}: {title[:50]}...")
+                        print(f"  FAILED ({result.get('reason', 'unknown')})")
+                else:
+                    stats["skipped"] += 1
+            except Exception as e:
+                stats["failed"] += 1
+                with _print_lock:
+                    print(f"[{done_count}/{len(items)}] {nid}: {title[:50]}...")
+                    print(f"  ERROR: {e}")
+
+    # Final export
+    try:
+        from export_jsonl import main as _export
+        _export()
+    except Exception:
+        pass
+
     return stats
 
 
