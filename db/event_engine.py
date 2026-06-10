@@ -204,3 +204,276 @@ def compute_status(conn, event_id):
     if recent_7 >= prev_7 * 0.8: return "peak"
     if recent_7 < prev_7 * 0.5: return "declining"
     return "developing"
+
+
+# ── AI-powered event synthesis ──────────────────────────────────────
+
+EVENT_SYSTEM_PROMPT = """\
+You are a senior news analyst specializing in Chinese current affairs.
+Given a collection of news items from 《新闻联播》 that are all about the same event,
+synthesize them into a coherent event profile.
+
+Always respond in Chinese. Return ONLY valid JSON, no markdown fences."""
+
+
+def generate_event_profile(conn, event_id):
+    """AI-generated event name, summary, and type classification."""
+    rows = conn.execute("""
+        SELECT n.title, n.summary, n.broadcast_date
+        FROM news_item n
+        JOIN news_event_link nel ON n.news_id = nel.news_id
+        WHERE nel.event_id = ?
+        ORDER BY n.broadcast_date
+    """, (event_id,)).fetchall()
+
+    if not rows:
+        return None
+
+    items_text = []
+    for r in rows:
+        summary = r["summary"] or r["title"]
+        items_text.append(f"[{r['broadcast_date']}] {r['title']}\n  {summary[:200]}")
+
+    prompt = f"""Analyze these related news items from 《新闻联播》 and synthesize an event profile:
+
+{chr(10).join(items_text)}
+
+Return JSON:
+{{
+  "name": "事件名称（如：习近平2026年朝鲜国事访问，20字以内）",
+  "type": "political|economic|military|diplomatic|social|technological|environmental",
+  "summary": "3-5句事件综述（150-300字），涵盖起因、发展、关键节点、当前状态",
+  "importance": "routine|notable|major|critical"
+}}"""
+
+    result_text = chat(prompt, EVENT_SYSTEM_PROMPT, temperature=0.3, max_tokens=1500)
+    if not result_text:
+        return None
+
+    try:
+        import json
+        text = result_text.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {"name": f"事件_{event_id[:8]}", "type": "political", "summary": result_text[:300], "importance": "notable"}
+
+
+def generate_event_report(conn, event_id):
+    """AI-generated detailed event report: background, timeline, actors, outlook."""
+    rows = conn.execute("""
+        SELECT n.title, n.summary, n.full_text, n.broadcast_date
+        FROM news_item n
+        JOIN news_event_link nel ON n.news_id = nel.news_id
+        WHERE nel.event_id = ?
+        ORDER BY n.broadcast_date
+    """, (event_id,)).fetchall()
+
+    if not rows:
+        return "No items linked to this event."
+
+    event = conn.execute("SELECT * FROM news_event WHERE event_id=?", (event_id,)).fetchone()
+    if not event:
+        return "Event not found."
+
+    persons = conn.execute("""
+        SELECT p.name_chinese, ep.role FROM person p
+        JOIN event_person ep ON p.person_id = ep.person_id
+        WHERE ep.event_id = ? ORDER BY ep.role
+    """, (event_id,)).fetchall()
+    orgs = conn.execute("""
+        SELECT o.name, eo.role FROM organization o
+        JOIN event_organization eo ON o.org_id = eo.org_id
+        WHERE eo.event_id = ? ORDER BY eo.role
+    """, (event_id,)).fetchall()
+
+    timeline = []
+    for r in rows:
+        preview = (r["summary"] or r["full_text"] or "")[:300]
+        timeline.append(f"[{r['broadcast_date']}] {r['title']}\n  {preview}")
+
+    prompt = f"""Generate a comprehensive event analysis report for this 《新闻联播》 event:
+
+Event: {event['name']}
+Type: {event['type']}
+Importance: {event['importance']}
+Status: {event['status']}
+Dates: {event['first_date']} to {event['last_date']}
+
+Key Actors:
+{chr(10).join(f'- {p["name_chinese"]} ({p["role"]})' for p in persons[:10])}
+
+Organizations:
+{chr(10).join(f'- {o["name"]} ({o["role"]})' for o in orgs[:10])}
+
+Timeline:
+{chr(10).join(timeline)}
+
+Write a 4-5 paragraph Chinese analysis covering:
+1. Event background and context
+2. Key developments and turning points
+3. Major actors and their roles
+4. Current status and future outlook
+5. Policy implications (if applicable)
+
+Be specific and cite dates. Use formal analytical language."""
+
+    return chat(prompt, EVENT_SYSTEM_PROMPT, max_tokens=2000) or "Report generation failed."
+
+
+def find_related_events(conn, event_id, max_related=5):
+    """Find events that share persons with the given event."""
+    rows = conn.execute("""
+        SELECT e.event_id, e.name, COUNT(*) as shared
+        FROM news_event e
+        JOIN event_person ep ON e.event_id = ep.event_id
+        WHERE ep.person_id IN (SELECT person_id FROM event_person WHERE event_id = ?)
+          AND e.event_id != ?
+        GROUP BY e.event_id ORDER BY shared DESC LIMIT ?
+    """, (event_id, event_id, max_related)).fetchall()
+    related = []
+    for r in rows:
+        e1 = conn.execute("SELECT last_date FROM news_event WHERE event_id=?", (event_id,)).fetchone()
+        e2 = conn.execute("SELECT first_date FROM news_event WHERE event_id=?", (r["event_id"],)).fetchone()
+        interval = _days_between(e1["last_date"], e2["first_date"]) if e1 and e2 else 0
+        related.append({
+            "event_id": r["event_id"], "name": r["name"],
+            "similarity": min(r["shared"] * 0.2, 1.0),
+            "type": "thematic",
+            "interval_days": interval,
+        })
+    return related
+
+
+def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
+    """Full pipeline: detect events → persist → AI profile → link actors → score."""
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    # 1. Clear previous event data (idempotent re-run)
+    conn.execute("DELETE FROM event_relation")
+    conn.execute("DELETE FROM event_organization")
+    conn.execute("DELETE FROM event_person")
+    conn.execute("DELETE FROM news_event_link")
+    conn.execute("DELETE FROM news_event")
+    conn.commit()
+
+    # 2. Detect event clusters
+    print("Detecting events...")
+    clusters = detect_events(conn, time_window_days, min_items)
+    total_items = sum(len(c) for _, c in clusters)
+    print(f"Found {len(clusters)} event clusters ({total_items} items)")
+
+    # 3. Create NewsEvent objects + link news items
+    event_ids = []
+    for name_hint, news_ids in clusters:
+        eid = _make_event_id(news_ids)
+        dates = sorted(set(
+            conn.execute("SELECT broadcast_date FROM news_item WHERE news_id=?", (nid,)).fetchone()["broadcast_date"]
+            for nid in news_ids
+        ))
+        conn.execute("""
+            INSERT OR IGNORE INTO news_event (event_id, name, type, first_date, last_date, news_count)
+            VALUES (?, ?, 'political', ?, ?, ?)
+        """, (eid, name_hint, dates[0], dates[-1], len(news_ids)))
+
+        for nid in news_ids:
+            conn.execute(
+                "INSERT OR IGNORE INTO news_event_link (news_id, event_id) VALUES (?, ?)",
+                (nid, eid),
+            )
+
+        # Link persons from news items to event
+        placeholders = ",".join("?" * len(news_ids))
+        conn.execute(f"""
+            INSERT OR IGNORE INTO event_person (event_id, person_id, role)
+            SELECT DISTINCT ?, np.person_id, 'mentioned'
+            FROM news_person np
+            WHERE np.news_id IN ({placeholders})
+        """, [eid] + news_ids)
+
+        # Link orgs from news items to event
+        conn.execute(f"""
+            INSERT OR IGNORE INTO event_organization (event_id, org_id, role)
+            SELECT DISTINCT ?, no.org_id, 'mentioned'
+            FROM news_organization no
+            WHERE no.news_id IN ({placeholders})
+        """, [eid] + news_ids)
+
+        event_ids.append(eid)
+
+    conn.commit()
+    print(f"Created {len(event_ids)} events")
+
+    # 4. AI profile generation (concurrent)
+    print("Generating AI event profiles...")
+    _lock = threading.Lock()
+
+    def _profile_one(eid):
+        c = sqlite3.connect(db_path)
+        c.row_factory = sqlite3.Row
+        try:
+            profile = generate_event_profile(c, eid)
+            if profile:
+                c.execute(
+                    "UPDATE news_event SET name=?, type=?, summary=?, importance=? WHERE event_id=?",
+                    (profile.get("name", f"事件_{eid[:8]}"),
+                     profile.get("type", "political"),
+                     profile.get("summary", ""),
+                     profile.get("importance", "notable"),
+                     eid),
+                )
+                c.commit()
+                with _lock:
+                    print(f"  {eid[:8]}: {profile.get('name', '?')[:40]}")
+                return True
+        finally:
+            c.close()
+        return False
+
+    done = 0
+    with ThreadPoolExecutor(max_workers=concurrency) as ex:
+        futures = {ex.submit(_profile_one, eid): eid for eid in event_ids}
+        for f in as_completed(futures):
+            if f.result():
+                done += 1
+    print(f"Profiled {done}/{len(event_ids)} events")
+
+    # 5. Compute heat + status + importance
+    print("Computing scores...")
+    for eid in event_ids:
+        heat = compute_heat_score(conn, eid)
+        importance = compute_importance(heat)
+        status = compute_status(conn, eid)
+        etype = classify_event_type(conn, eid)
+        conn.execute(
+            "UPDATE news_event SET heat_score=?, importance=?, status=?, type=? WHERE event_id=?",
+            (heat, importance, status, etype, eid),
+        )
+    conn.commit()
+
+    # 6. Find related events
+    print("Finding related events...")
+    for eid in event_ids:
+        related = find_related_events(conn, eid, max_related=5)
+        for rel in related:
+            conn.execute("""
+                INSERT OR IGNORE INTO event_relation
+                (source_event_id, target_event_id, similarity_score, relation_type, time_interval_days)
+                VALUES (?, ?, ?, ?, ?)
+            """, (eid, rel["event_id"], rel["similarity"], rel.get("type", "thematic"),
+                  rel.get("interval_days", 0)))
+    conn.commit()
+
+    # 7. Final stats
+    stats = {
+        "events": conn.execute("SELECT COUNT(*) as c FROM news_event").fetchone()["c"],
+        "with_summary": conn.execute("SELECT COUNT(*) as c FROM news_event WHERE summary IS NOT NULL AND summary != ''").fetchone()["c"],
+        "critical": conn.execute("SELECT COUNT(*) as c FROM news_event WHERE importance='critical'").fetchone()["c"],
+        "relations": conn.execute("SELECT COUNT(*) as c FROM event_relation").fetchone()["c"],
+    }
+    print(f"Pipeline complete: {stats}")
+    conn.close()
+    return stats
