@@ -135,21 +135,22 @@ header h1 { font-size: 1.8rem; font-weight: 700; background: linear-gradient(135
 </div>
 
 <script>
-const state = { items: [], topics: [], dates: [], filters: { date: null, topic: null, person: null, search: '' }, filtered: [] };
+const state = { items: [], topics: [], dates: [], events: [], filters: { date: null, topic: null, person: null, search: '' }, filtered: [] };
 const COLORS = ['#4f8ff7','#e74c3c','#f39c12','#2ecc71','#9b59b6','#1abc9c','#e91e63','#0dceda','#c0392b','#f7b731'];
 
 function topicColor(t) { return COLORS[((t.topic_id || t.name || '').length) % COLORS.length]; }
 
 async function loadData() {
   const base = '..';
-  const [iResp, tResp, dResp] = await Promise.all([
+  const [iResp, tResp, dResp, eResp] = await Promise.all([
     fetch(base + '/data/news_items.jsonl'),
     fetch(base + '/data/topics.json'),
     fetch(base + '/data/dates.json'),
+    fetch(base + '/data/events.json'),
   ]);
   if (!iResp.ok) throw new Error('Data files not found. Run: cd db && python3 export_jsonl.py');
   const items = (await iResp.text()).trim().split('\n').filter(Boolean).map(JSON.parse);
-  return { items, topics: await tResp.json(), dates: await dResp.json() };
+  return { items, topics: await tResp.json(), dates: await dResp.json(), events: eResp.ok ? await eResp.json() : [] };
 }
 
 function computePersonCounts(items) {
@@ -176,7 +177,7 @@ function loadHash() { if (!window.location.hash) return; const p = new URLSearch
 
 function renderAll() {
   const db = document.getElementById('dashboard'); db.innerHTML = '';
-  renderStats(); renderTimeline(db); renderTopicGrid(db); renderNewsList(db); renderPersonBoard(db); renderFilterTags();
+  renderStats(); renderTimeline(db); renderTopicGrid(db); renderNewsList(db); renderPersonBoard(db); renderEventGantt(db); renderFilterTags();
   const items = state.items, dates = state.dates;
   const auCount = new Set(items.flatMap(it => (it.people || []).map(p => p.name_chinese || p.name))).size;
   document.getElementById('subtitle').innerHTML = items.length ? `<strong>${dates.length}</strong> 天 · <strong>${items.length}</strong> 条新闻 · <strong>${auCount}</strong> 位人物 · <strong>${state.topics.length}</strong> 个主题` : 'Loading...';
@@ -255,6 +256,53 @@ function renderPersonBoard(db) {
   db.querySelectorAll('.person-row').forEach(r => r.addEventListener('click', () => setFilter('person', r.dataset.person)));
 }
 
+function renderEventGantt(db) {
+  if (!state.events.length) return;
+  const top = [...state.events].sort((a,b) => (b.heat_score||0) - (a.heat_score||0)).slice(0, 10);
+  const importanceColors = {critical:'#e74c3c',major:'#f39c12',notable:'#4f8ff7',routine:'#7f8c8d'};
+  let h = '<div class="card full-width"><div class="card-title">事件时间线 <span class="badge">' + state.events.length + ' events</span></div><div style="display:flex;flex-direction:column;gap:6px">';
+  for (const e of top) {
+    const color = importanceColors[e.importance] || '#7f8c8d';
+    h += '<div class="news-item" data-eid="' + e.event_id + '" style="cursor:pointer"><div class="title">' + e.name.substring(0,40) + '</div><div class="meta"><span style="color:' + color + '">' + e.importance + '</span><span>' + e.status + '</span><span>' + e.first_date + ' → ' + e.last_date + '</span><span>' + e.news_count + ' items</span></div></div>';
+  }
+  h += '</div></div>';
+  db.insertAdjacentHTML('beforeend', h);
+  db.querySelectorAll('[data-eid]').forEach(el => el.addEventListener('click', () => {
+    const e = state.events.find(x => x.event_id === el.dataset.eid);
+    if (e) showEventModal(e);
+  }));
+}
+
+function showEventModal(e) {
+  document.getElementById('modalTitle').textContent = e.name;
+  document.getElementById('modalMeta').innerHTML = '<span>' + e.type + '</span><span style="opacity:0.3">|</span><span>' + e.importance + '</span><span style="opacity:0.3">|</span><span>' + e.status + '</span><span style="opacity:0.3">|</span><span>Heat: ' + (e.heat_score||0).toFixed(0) + '</span>';
+
+  const sumEl = document.getElementById('modalSummary');
+  sumEl.innerHTML = e.summary ? '<div class="detail-summary">' + e.summary + '</div>' : '';
+  sumEl.style.display = e.summary ? '' : 'none';
+
+  let itemsHTML = '<h3>时间线</h3>';
+  for (const it of (e.items || [])) {
+    itemsHTML += '<div style="padding:4px 0;font-size:0.82rem"><span style="color:var(--text3)">' + it.date + '</span> ' + it.title.substring(0,80) + '</div>';
+  }
+  document.getElementById('modalTopics').innerHTML = itemsHTML;
+  document.getElementById('modalTopics').style.display = '';
+
+  let actorsHTML = '';
+  if (e.key_persons && e.key_persons.length) {
+    actorsHTML = '<h3>关键人物</h3><div class="chip-row">' + e.key_persons.map(p => '<span class="chip" style="background:#e74c3c">' + p.name + '</span>').join('') + '</div>';
+  }
+  document.getElementById('modalPeople').innerHTML = actorsHTML;
+  document.getElementById('modalPeople').style.display = actorsHTML ? '' : 'none';
+
+  document.getElementById('modalKeywords').style.display = 'none';
+  document.getElementById('modalOrgs').style.display = 'none';
+  document.getElementById('modalSignals').style.display = 'none';
+  document.getElementById('modalText').style.display = 'none';
+
+  document.getElementById('modal').classList.add('open');
+}
+
 function showModal(it) {
   document.getElementById('modalTitle').textContent = it.title;
   document.getElementById('modalMeta').innerHTML = `<span>${it.broadcast_date}</span><span style="opacity:0.3">|</span><span>#${it.order_in_broadcast}</span>${it.word_count ? `<span style="opacity:0.3">|</span><span>${it.word_count.toLocaleString()} 字</span>` : ''}`;
@@ -289,7 +337,7 @@ async function init() {
   try {
     db.innerHTML = `<div class="loading-state"><div class="spinner"></div><h2>加载数据中...</h2><p>正在获取新闻、主题和日期数据</p></div>`;
     const data = await loadData();
-    state.items = data.items; state.topics = data.topics; state.dates = data.dates;
+    state.items = data.items; state.topics = data.topics; state.dates = data.dates; state.events = data.events;
     state.filtered = data.items;
     loadHash(); renderAll();
   } catch (err) {
