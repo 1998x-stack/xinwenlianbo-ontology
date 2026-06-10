@@ -25,16 +25,18 @@ def connect_db():
 
 
 def compute_pagerank(nodes, edges, iterations=30, damping=0.85):
-    """Simple PageRank algorithm. Returns dict of node_id → score (0-1 normalized)."""
+    """PageRank on an undirected view of the graph.
+    All edges treated as bidirectional so centrality flows both ways
+    (news→entity and entity→news). This prevents news nodes from
+    being sinkholes with zero incoming links in a bipartite graph."""
     node_ids = {n["id"] for n in nodes}
-    # Build adjacency: outgoing links per node
-    out_links = defaultdict(set)
-    in_links = defaultdict(set)
+    # Build undirected adjacency (bidirectional links)
+    neighbors = defaultdict(set)
     for e in edges:
         src, tgt = e["source"], e["target"]
         if src in node_ids and tgt in node_ids:
-            out_links[src].add(tgt)
-            in_links[tgt].add(src)
+            neighbors[src].add(tgt)
+            neighbors[tgt].add(src)  # bidirectional
 
     N = len(nodes)
     pr = {n["id"]: 1.0 / N for n in nodes}
@@ -44,10 +46,10 @@ def compute_pagerank(nodes, edges, iterations=30, damping=0.85):
         for n in nodes:
             nid = n["id"]
             rank = (1 - damping) / N
-            for src in in_links.get(nid, set()):
-                out_count = len(out_links.get(src, set()))
-                if out_count > 0:
-                    rank += damping * pr[src] / out_count
+            for neighbor in neighbors.get(nid, set()):
+                deg = len(neighbors.get(neighbor, set()))
+                if deg > 0:
+                    rank += damping * pr[neighbor] / deg
             new_pr[nid] = rank
         pr = new_pr
 
