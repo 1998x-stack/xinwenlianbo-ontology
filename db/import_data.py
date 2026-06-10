@@ -10,9 +10,10 @@ PROJECT_ROOT = DB_DIR.parent
 DEFAULT_DATA_DIR = PROJECT_ROOT / "scraper" / "output"
 
 
-def make_news_id(broadcast_date, title):
-    """Generate a stable news_id from broadcast date + title."""
-    raw = f"{broadcast_date}:{title}"
+def make_news_id(broadcast_date, order):
+    """Generate a stable news_id from broadcast date + order in broadcast.
+    Using order (not title) ensures stability across re-scrapes."""
+    raw = f"{broadcast_date}:{order}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
@@ -62,7 +63,7 @@ def import_data(db_path, data_dir=None):
         items = parse_markdown_file(filepath)
 
         for order, item in enumerate(items):
-            news_id = make_news_id(broadcast_date, item["title"])
+            news_id = make_news_id(broadcast_date, order + 1)
             conn.execute(
                 """INSERT OR IGNORE INTO news_item
                    (news_id, title, full_text, broadcast_date, order_in_broadcast, word_count)

@@ -71,6 +71,22 @@ Return exactly this JSON structure (no markdown fences, no extra text):
 - If the content is truncated or incomplete, set keywords to ["TRUNCATED"]."""
 
 
+def _infer_org_from_title(title, entities):
+    """Try to match a person's title to an organization extracted from the same article."""
+    if not title:
+        return None
+    orgs = entities.get("organizations", []) if isinstance(entities, dict) else []
+    for org in orgs[:5]:
+        oname = org.get("name", "") if isinstance(org, dict) else str(org)
+        if not oname:
+            continue
+        # Check if title contains org name or key part of it
+        for part in oname.split(" "):
+            if len(part) >= 3 and part in title:
+                return oname
+    return None
+
+
 def enhance_news_item(conn, news_id, title, full_text, max_text_len=4000):
     """Extract structured data from a single news item via DeepSeek API."""
     text = full_text[:max_text_len]
@@ -131,9 +147,11 @@ def persist_enhancement(conn, news_id, result):
         pname = person.get("name", "") if isinstance(person, dict) else str(person)
         ptitle = person.get("title", "") if isinstance(person, dict) else ""
         if pname:
+            # Try to infer organization from title
+            org_id = _infer_org_from_title(ptitle, entities)
             conn.execute(
-                "INSERT OR IGNORE INTO person (person_id, name, name_chinese, title) VALUES (?, ?, ?, ?)",
-                (pname, pname, pname, ptitle),
+                "INSERT OR IGNORE INTO person (person_id, name, name_chinese, title, organization_id) VALUES (?, ?, ?, ?, ?)",
+                (pname, pname, pname, ptitle, org_id),
             )
             conn.execute(
                 "INSERT OR IGNORE INTO news_person (news_id, person_id) VALUES (?, ?)",
@@ -172,7 +190,15 @@ def persist_enhancement(conn, news_id, result):
 
 
 def enhance_all(conn, limit=0, dry_run=False):
-    """Enhance all un-enhanced news items. Idempotent — skips items with summaries."""
+    """Enhance all un-enhanced news items. Idempotent — skips items with summaries.
+    Pre-exports JSONL before enhancement so Pages always has complete data."""
+    # Pre-export: ensure Pages has current data even if enhancement fails partway
+    try:
+        from export_jsonl import main as _export
+        _export()
+    except Exception:
+        pass
+
     cursor = conn.execute(
         "SELECT news_id, title, full_text FROM news_item "
         "WHERE summary IS NULL OR summary = '' "

@@ -20,25 +20,30 @@ def scrape_date(date_str):
     if not main_content:
         return []
 
-    articles = main_content.find_all("article")
+    articles = main_content.find_all("article", class_="content-section")
     items = []
     for i, art in enumerate(articles):
-        text = art.get_text(strip=True)
-        if not text or len(text) < 20:
-            continue
+        # Extract title from <h2 class="content-heading">
+        heading = art.find("h2", class_="content-heading")
+        if not heading:
+            heading = art.find("h2")
+        title = heading.get_text(strip=True) if heading else ""
 
-        # Extract title: first sentence or first ~80 chars
-        title = text[:80]
-        for sep in ["。", "，"]:
-            idx = text.find(sep, 20)
-            if 20 < idx < 80:
-                title = text[:idx + 1]
-                break
+        # Extract body from <div class="content-body"> <p> tags
+        body_div = art.find("div", class_="content-body")
+        if body_div:
+            paragraphs = body_div.find_all("p")
+            body_text = "\n".join(p.get_text(strip=True) for p in paragraphs)
+        else:
+            body_text = ""
+
+        if not title or len(body_text) < 20:
+            continue
 
         broadcast_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
         items.append({
             "title": title,
-            "full_text": text,
+            "full_text": body_text,
             "broadcast_date": broadcast_date,
             "order": i + 1,
             "url": url,

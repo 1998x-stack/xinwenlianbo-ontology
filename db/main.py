@@ -67,7 +67,13 @@ def setup():
     else:
         print("Database already exists.")
     if is_db_empty() or force:
-        print("Importing data...")
+        scraper_dir = DB_DIR.parent / "scraper" / "output"
+        md_files = list(scraper_dir.glob("*.md")) if scraper_dir.exists() else []
+        if not md_files:
+            print(f"No scraped data found in {scraper_dir}")
+            print("Run first: cd ../scraper && python main.py --days 30")
+            return
+        print(f"Importing data from {len(md_files)} files...")
         run_import(str(DB_PATH))
     else:
         print("Database already populated. Use --force-reimport to re-import.")
