@@ -2,133 +2,133 @@
   {
     "topic_id": "jing-ji",
     "name": "经济",
-    "category": "",
+    "category": "Economy",
     "article_count": 169,
     "date_count": 29
   },
   {
     "topic_id": "guo-ji-guan-xi",
     "name": "国际关系",
-    "category": "",
+    "category": "Politics",
     "article_count": 136,
     "date_count": 29
   },
   {
     "topic_id": "wai-jiao",
     "name": "外交",
-    "category": "",
+    "category": "Politics",
     "article_count": 107,
     "date_count": 27
   },
   {
     "topic_id": "she-hui",
     "name": "社会",
-    "category": "",
+    "category": "Society",
     "article_count": 98,
     "date_count": 29
   },
   {
     "topic_id": "gao-zhi-liang-fa-zhan",
     "name": "高质量发展",
-    "category": "",
+    "category": "Economy",
     "article_count": 93,
     "date_count": 27
   },
   {
     "topic_id": "ke-ji",
     "name": "科技",
-    "category": "",
+    "category": "Technology",
     "article_count": 78,
     "date_count": 28
   },
   {
     "topic_id": "sheng-tai",
     "name": "生态",
-    "category": "",
+    "category": "Environment",
     "article_count": 56,
     "date_count": 25
   },
   {
     "topic_id": "zheng-zhi",
     "name": "政治",
-    "category": "",
+    "category": "Politics",
     "article_count": 53,
     "date_count": 27
   },
   {
     "topic_id": "min-sheng-bao-zhang",
     "name": "民生保障",
-    "category": "",
+    "category": "Society",
     "article_count": 53,
     "date_count": 25
   },
   {
     "topic_id": "jun-shi",
     "name": "军事",
-    "category": "",
+    "category": "Military",
     "article_count": 50,
     "date_count": 26
   },
   {
     "topic_id": "wen-hua",
     "name": "文化",
-    "category": "",
+    "category": "Culture",
     "article_count": 35,
     "date_count": 21
   },
   {
     "topic_id": "fa-zhi-jian-she",
     "name": "法治建设",
-    "category": "",
+    "category": "Law",
     "article_count": 24,
     "date_count": 17
   },
   {
     "topic_id": "dang-de-jian-she",
     "name": "党的建设",
-    "category": "",
+    "category": "Politics",
     "article_count": 24,
     "date_count": 19
   },
   {
     "topic_id": "yi-dai-yi-lu",
     "name": "一带一路",
-    "category": "",
+    "category": "Economy",
     "article_count": 23,
     "date_count": 13
   },
   {
     "topic_id": "xiang-cun-zhen-xing",
     "name": "乡村振兴",
-    "category": "",
+    "category": "Economy",
     "article_count": 22,
     "date_count": 17
   },
   {
     "topic_id": "gai-ge-kai-fang",
     "name": "改革开放",
-    "category": "",
+    "category": "Economy",
     "article_count": 14,
     "date_count": 12
   },
   {
     "topic_id": "zhong-mei-guan-xi",
     "name": "中美关系",
-    "category": "",
+    "category": "Politics",
     "article_count": 13,
     "date_count": 5
   },
   {
     "topic_id": "guo-fang-an-quan",
     "name": "国防安全",
-    "category": "",
+    "category": "Military",
     "article_count": 7,
     "date_count": 6
   },
   {
     "topic_id": "ji-chu-she-shi",
     "name": "基础设施",
-    "category": "",
+    "category": "Economy",
     "article_count": 1,
     "date_count": 1
   }

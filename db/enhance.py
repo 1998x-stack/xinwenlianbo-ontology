@@ -20,6 +20,18 @@ TOPICS = [
     "改革开放", "党的建设", "法治建设", "民生保障", "国防安全",
 ]
 
+# Hardcoded category mapping — AI doesn't output category, so we map topic→category here
+TOPIC_CATEGORIES = {
+    "政治": "Politics", "经济": "Economy", "外交": "Politics",
+    "军事": "Military", "科技": "Technology", "社会": "Society",
+    "文化": "Culture", "生态": "Environment",
+    "国际关系": "Politics", "中美关系": "Politics",
+    "一带一路": "Economy", "乡村振兴": "Economy",
+    "高质量发展": "Economy", "改革开放": "Economy",
+    "党的建设": "Politics", "法治建设": "Law",
+    "民生保障": "Society", "国防安全": "Military",
+}
+
 SYSTEM_PROMPT = """\
 You are a senior news analyst specializing in Chinese current affairs. Your task is to read transcripts from 《新闻联播》 (Xinwen Lianbo) — the daily evening news broadcast of China Central Television — and extract structured analytical data.
 
@@ -133,9 +145,10 @@ def persist_enhancement(conn, news_id, result):
         if not tname:
             continue
         tid = slugify(tname)
+        category = TOPIC_CATEGORIES.get(tname, '')
         conn.execute(
-            "INSERT OR IGNORE INTO topic (topic_id, name, category) VALUES (?, ?, '')",
-            (tid, tname),
+            "INSERT OR IGNORE INTO topic (topic_id, name, category) VALUES (?, ?, ?)",
+            (tid, tname, category),
         )
         conn.execute(
             "INSERT OR IGNORE INTO news_topic (news_id, topic_id, relevance_score) VALUES (?, ?, ?)",

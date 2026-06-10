@@ -439,7 +439,7 @@ def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
         eid = _make_event_id([orphan["news_id"]])
         conn.execute("""
             INSERT OR IGNORE INTO news_event (event_id, name, type, first_date, last_date, news_count)
-            VALUES (?, ?, 'routine', ?, ?, 1)
+            VALUES (?, ?, 'political', ?, ?, 1)
         """, (eid, orphan["title"][:80], orphan["broadcast_date"], orphan["broadcast_date"]))
         conn.execute(
             "INSERT OR IGNORE INTO news_event_link (news_id, event_id) VALUES (?, ?)",
