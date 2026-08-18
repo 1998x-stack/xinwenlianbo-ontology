@@ -1,5 +1,7 @@
 # 新闻联播 Ontology — Palantir 风格语义层
 
+> **English TL;DR:** A complete Ontology engineering project for CCTV's nightly news (Xinwen Lianbo) text corpus in the Palantir style — two-phase delivery: Phase 1 data foundation (crawl → SQLite → AI enrichment → dashboard) plus a knowledge-graph visualization, exposing the news corpus as a queryable semantic layer.
+
 《新闻联播》文字版的完整 Ontology 落地项目。两阶段交付：Phase 1 数据基础层（抓取→SQLite→AI增强→仪表板） + Phase 2 事件引擎（事件检测→生命周期→AI报告→知识图谱）。
 
 **在线仪表板**: https://1998x-stack.github.io/xinwenlianbo-ontology/visualize/index.html  
