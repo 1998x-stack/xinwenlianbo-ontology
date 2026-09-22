@@ -1,52 +1,36 @@
 # 源码审查与改造路线图（2026-09-22）
 
-## 当前结构与数据语义
+## 架构与审查范围
 
-`scraper → Markdown → SQLite (schema.sql / schema_v2.sql) → AI 增强与事件聚类 → JSONL/JSON → GitHub Pages`。
+`scraper → Markdown → SQLite → AI 增强 / 事件引擎 → JSONL / JSON → GitHub Pages`。
 
-已审查的关键代码：`scraper/{main,scraper}.py`、`db/{main,import_data,queries,ai_client,event_engine,export_jsonl,export_graph}.py`、两份 SQLite schema、`visualize/{index,graph}.html`。本次检查为静态源码审查与新增离线回归测试；**没有对真实采集站点、现有完整数据库、DeepSeek API 或浏览器部署执行端到端验收**。
+已审查采集、导入、两份数据库 schema、查询、AI 调用、事件管道、导出和两个可视化页面。测试范围为临时 SQLite 数据库、静态代码/脚本检查及 CLI 启动；**尚未完成真实网站、完整生产数据库、第三方 AI 和浏览器的端到端验收**。仓库已有的 `data/*.json*` 是历史快照，不代表此次代码修改后的重新生成结果。
 
-## 本次已实施
+## 已实施并提交到本 PR
 
-- `db/import_data.py`：导入前开启 SQLite 外键约束；校验 `YYYYMMDD.md` 的实际日期与非空文章；全部文件共用一个事务；回滚重复 ID 对应不同内容的导入，而非静默跳过；检查 `PRAGMA foreign_key_check` 的结果。相同原始内容的重入保留已存的人工/AI 增强字段。
-- `db/export_graph.py`：基于输出新闻选取实体；图谱关联仅指向已输出节点；人物共现仅统计当前图谱选中的新闻；处理 PageRank 的孤立节点权重。
-- `visualize/index.html`：用安全 DOM API 和 `textContent` 渲染新闻、主题、人物、事件与搜索内容，不再把动态文本拼入 HTML；重建可访问的检索、时间线、统计、新闻列表、事件列表与详情弹窗；显示数据快照覆盖日期及推断标记；来源链接仅接受 `http/https`，新窗口附加 `noopener noreferrer`。
-- `tests/test_data_integrity.py` 和 `tests/test_dashboard_safety.py`：临时 SQLite 数据库回归测试、危险 DOM sink 静态检查、Node.js 脚本语法检查；CI 覆盖 Python 3.10–3.13，并执行编译检查及 CLI 启动检查。
+- `db/import_data.py`：严格校验日期、来源文件与条目；批次事务和异常回滚；开启外键检查；相同原文重复导入保持现有增强字段；相同日期/位置出现内容变化时拒绝静默覆盖。
+- `db/export_graph.py`：仅根据当前选中的新闻生成实体节点与有效关联边；共现局限在选中新闻中；孤立节点 PageRank 权重重新分配。
+- `visualize/index.html`：重建统计、时间线、主题、人物、事件、新闻检索及详情弹窗；动态内容通过 `textContent`/安全 DOM API 构建；来源链接限定 `http/https`，显示数据覆盖范围及推断提示。
+- `visualize/graph.html`：D3 提示信息及错误改用文本节点；忽略无效端点；支持类型筛选、键盘选择、详情与图例。
+- `tests/`、`.github/workflows/ci.yml`：临时 SQLite 回归、前端危险 DOM sink 静态检查、Node.js 语法检查、Python 3.10–3.13 编译和 CLI 启动检查。
 
-### 兼容性与操作警告
+### 数据兼容性注意事项
 
-- 为兼容已有关联记录，新闻 ID 仍是播出日期 + 条目顺序的哈希；**它不能证明在新闻顺序改变之后对应的是同一条新闻**。新导入遇到标题或全文冲突时会终止整个批次并抛出提示。请先人工核对来源、备份数据库和相关增强/事件关系，再决定是否采用显式迁移流程；不要直接删除生产数据后重导。
-- 本次没有重写已跟踪的 `data/*.json*`；它们是既有快照，不能被解释为已用修改后的算法重新计算过的数据。要生成新图谱，应在独立测试数据库上执行导出并检查变化。
-- `db/main.py setup --force-reimport` 不再能忽略内容冲突；原有 `setup` 也不会自动修复错误的来源顺序或跨表引用。
-- Dashboard 的 HTML/JavaScript 静态检查**不等于浏览器安全审计**；应补充端到端安全回归。原有 `visualize/graph.html` 工具提示仍使用动态 `.html()`，需要独立加固。
+原有 `news_id` 由日期+播出顺序生成。它无法在来源重新排序后自动识别同一篇报道，因此导入遇到 ID/内容冲突时**主动停止**。请先核对原始数据、备份现有数据库及 AI/事件关联，再设计显式迁移；不能把 `--force-reimport` 当作消除内容冲突的开关。当前修改未重新导出仓库中的任何历史 JSON 数据，亦未更改现有 schema。
 
-## 后续优先实施项目及验收标准
+## 继续实施的计划及验收标准
 
-### P0：图谱页面信任边界与浏览器测试
+**P0：端到端安全和可视化验收。** 在真实浏览器中检查仪表板、图谱、键盘导航、移动端、模态框焦点、D3 CDN 失败和数据加载失败。使用受控的特殊字符样本检查 JSONL、图谱标签、URL hash 和事件摘要只能呈现文本；目前静态安全测试不是浏览器安全审计。
 
-`visualize/graph.html` 的工具提示通过 D3 `.html()` 拼接标签。按 OWASP DOM XSS 指南将动态内容改为安全文本节点并限制可控属性。补充浏览器层回归测试，覆盖 JSONL 字段、URL hash 搜索条件、事件弹窗和图谱 tooltip，确保注入的标记只以文本展示；检查焦点管理、键盘导航、移动端界面、图表渲染与全部数据文件加载。
+**P0：证据与本体可信度。** 为 NewsItem、NewsEvent、Person、Organization、Topic 及其关系补充来源 URL、采集时间、原文 hash、证据片段、抽取方式、模型版本、人工复核状态。将原始报道、AI 推断、人工确认分层展示；不能将共现自动描述成因果，亦不应在未确定类别时默认所有事件为 `political`。给出数据日期范围，避免把历史快照误读为实时新闻。
 
-### P0：数据来源与推断边界
+**P1：事件管道原子发布。** 当前 `run_event_pipeline` 首先清空事件表，并在多个阶段提交；AI/数据库错误可能让先前结果丢失或留下半成品。建议使用隔离的工作表/运行代次，在全量校验后原子切换。验收：注入网络超时、429、无效 JSON、SQLite 锁后，上一成功结果仍可用，重复运行没有不可解释的漂移。
 
-新增 `source_url`、`source_retrieved_at`、`source_hash`、`extraction_method`、`model_name`、`model_version`、`review_status` 等可追溯字段或独立断言表。事件类别、关联关系、重要性与展望均应标记为“算法推断”或“人工核实”，不能把某一次节目报道或 AI 生成摘要直接等同于已独立核实的事实。禁止在证据不足时将默认事件类别硬编码为 `political`，也不应把共现关系自动显示成因果关系。数据覆盖的起止日期应直接来自数据，而不是将历史快照描述为实时新闻。
+**P1：采集、查询和导出。** 为抓取增加重试上限、来源结构变化提示与 provenance；导出期间使用一致的只读快照，写临时文件后原子替换。检验中断、缺表、空集、异常日期、损坏 JSON、真实数据全量图谱以及 CLI 所有命令；优化 `get_date_summary` 的 N+1 查询和全文搜索实现。
 
-### P1：事件引擎幂等与失败恢复
+**P2：真正的语义本体。** 现有 SQL 关系和 JSON 图谱还不是完整 OWL/RDF 本体。先明确实体、断言与关系类型及语义边界，再参照 W3C PROV-O 建模数据生成过程、使用 RDF/SHACL 验证约束；在小样本证明实体消歧、事件拆合、来源追溯和错误回滚后迁移全量数据。图谱应显示关系性质及证据，不把 PageRank 直接解释为现实重要性。
 
-当前 `run_event_pipeline` 启动时直接清空全部事件表，并在后续多个阶段 `commit`；第三方调用失败可能使已有事件数据丢失或留下部分结果。应改用临时表或生成代次 `pipeline_run_id`，在完整验证之后执行原子切换，并保留最近一次成功结果；补充 API 超时、429、无效 JSON、SQLite 写锁和部分聚类失败的故障注入测试。验证“旧结果仍可用、没有半成品发布、重复执行结果可预测”。
-
-### P1：采集与导出可靠性
-
-采集器需要有界重试、来源响应结构变化报警、每日抓取状态、URL 与采集时间保留、Markdown 元数据的无损解析。导出器需要在一致的 SQLite 只读快照中生成文件、先写临时文件后原子替换，并在发布前校验 JSON/JSONL 格式与关系引用；加入缺表、空集、损坏数据和静态站点加载冒烟测试。
-
-### P2：真正的本体语义层
-
-目前结构更接近关系型实体—关系表与 JSON 图谱，不能仅凭目录名称视为完整 OWL/RDF 本体。设计明确的 `NewsItem`、`NewsEvent`、`Person`、`Organization`、`Topic`、`SourceDocument`、`Assertion` 及其关系语义，给每条断言保留原文证据位置、来源、生成过程及置信度。采用 W3C PROV-O 建模来源/活动，RDF/SHACL 执行基于 shape 的数据验证；先在受控数据样本上验证实体消歧、时间范围、多对多关系、事件拆分/合并、错误回滚，再考虑全量迁移。
-
-### P2：可视化拓展
-
-在新 dashboard 基础上增加逐条断言的“原始报道 / AI 推断 / 人工确认”证据链。图谱提供节点/边类型图例、来源详情、稳定排序、边数限制与按需加载；将共现、主题关联和人工确认的因果关系用不同视觉编码展示，避免把中心性指标等同于现实重要性。
-
-## 本地验证
+## 复现测试
 
 ```bash
 python -m pip install requests beautifulsoup4 pypinyin
@@ -56,11 +40,11 @@ python db/main.py --help
 python scraper/main.py --help
 ```
 
-测试使用临时数据库，不需要 API key，也不会修改仓库的 `data/` 快照。
+测试不需要 API key，使用独立临时数据库，不修改仓库的 `data/` 快照。
 
-## 外部技术参考
+## 技术依据
 
-- SQLite: https://www.sqlite.org/foreignkeys.html and https://www.sqlite.org/pragma.html#pragma_foreign_key_check
+- SQLite: https://www.sqlite.org/foreignkeys.html
 - OWASP DOM XSS: https://cheatsheetseries.owasp.org/cheatsheets/DOM_based_XSS_Prevention_Cheat_Sheet.html
 - W3C PROV-O: https://www.w3.org/TR/prov-o/
 - W3C SHACL: https://www.w3.org/TR/shacl/
