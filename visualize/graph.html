@@ -1,201 +1,121 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>新闻联播 知识图谱</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>新闻联播 · 知识图谱</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
-:root {
-  --bg: #0f1117; --surface: #1a1d27; --text: #e1e4e8; --text2: #8b90a0;
-  --accent: #4f8ff7; --radius: 8px;
-  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
-header {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 10;
-  padding: 12px 20px; display: flex; align-items: center; gap: 16px;
-  background: linear-gradient(180deg, var(--bg) 60%, transparent);
-  pointer-events: none;
-}
-header > * { pointer-events: auto; }
-header h1 { font-size: 1.3rem; font-weight: 700; }
-.back-link { color: var(--text2); text-decoration: none; font-size: 0.85rem; }
-.back-link:hover { color: var(--text); }
-.legend { display: flex; gap: 12px; margin-left: auto; font-size: 0.75rem; }
-.legend-item { display: flex; align-items: center; gap: 4px; }
-.legend-dot { width: 8px; height: 8px; border-radius: 50%; }
-#graph { width: 100vw; height: 100vh; }
-.tooltip {
-  position: fixed; pointer-events: none; z-index: 100;
-  background: var(--surface); border: 1px solid rgba(255,255,255,0.1);
-  border-radius: var(--radius); padding: 10px 14px; font-size: 0.82rem;
-  max-width: 300px; opacity: 0; transition: opacity .15s;
-}
-.tooltip .label { font-weight: 600; margin-bottom: 4px; }
-.tooltip .info { color: var(--text2); font-size: 0.75rem; }
-.controls {
-  position: fixed; bottom: 20px; right: 20px; z-index: 10;
-  display: flex; gap: 8px;
-}
-.controls button {
-  padding: 6px 14px; border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 20px; background: var(--surface); color: var(--text2);
-  cursor: pointer; font-size: 0.8rem; font-family: var(--font);
-  transition: all .2s;
-}
-.controls button:hover { border-color: var(--accent); color: var(--text); }
-.controls button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text2); font-size: 1.1rem; }
+:root{font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color-scheme:dark;--bg:#0b1220;--panel:#172235;--line:#35465f;--text:#eef3fc;--muted:#b1c1d7;--blue:#8ab6ff;--focus:#ffdb86}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);min-height:100vh}a{color:var(--blue)}button{font:inherit;cursor:pointer;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 12px}button:hover,button.active{border-color:var(--blue);background:#294970}button:focus-visible,a:focus-visible,circle:focus-visible{outline:3px solid var(--focus);outline-offset:2px}header{position:fixed;inset:0 0 auto;z-index:10;padding:14px 20px;background:#0b1220ed;display:flex;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:1.15rem;margin:0}.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}.legend span:before{content:'●';margin-right:4px}.legend .news:before{color:#8ab6ff}.legend .person:before{color:#ff8b92}.legend .org:before{color:#85d8a5}.legend .topic:before{color:#ffca80}#graph{display:block;width:100vw;height:100vh}.controls{position:fixed;bottom:16px;left:16px;z-index:10;display:flex;gap:7px;flex-wrap:wrap;max-width:calc(100vw - 32px)}.tooltip{position:fixed;z-index:20;pointer-events:none;opacity:0;max-width:min(300px,80vw);padding:10px 13px;background:var(--panel);border:1px solid var(--line);border-radius:8px;font-size:.86rem;overflow-wrap:anywhere}.tooltip strong{display:block}.tooltip small{color:var(--muted)}.notice{position:fixed;left:16px;top:90px;z-index:10;padding:10px 13px;background:var(--panel);border:1px solid var(--line);border-radius:9px;max-width:400px;font-size:.85rem;color:var(--muted)}.detail{position:fixed;top:90px;right:16px;z-index:15;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;max-width:min(350px,calc(100vw - 32px));overflow-wrap:anywhere}.detail h2{font-size:1rem;margin:0 0 10px}.detail p{margin:6px 0;color:var(--muted)}.detail button{margin-top:10px}@media(max-width:600px){header{padding:9px 12px;gap:8px}.notice{top:115px;right:16px}.detail{top:115px}}
 </style>
 </head>
 <body>
-<header>
-  <a href="index.html" class="back-link">← 返回仪表板</a>
-  <h1>新闻联播 知识图谱</h1>
-  <div class="legend">
-    <span class="legend-item"><span class="legend-dot" style="background:#4f8ff7"></span>新闻</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#e74c3c"></span>人物</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span>机构</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#f39c12"></span>主题</span>
-  </div>
-</header>
-
-<svg id="graph"></svg>
-<div class="tooltip" id="tooltip"></div>
-
-<div class="controls">
-  <button onclick="filterType('all')" id="btn-all" class="active">全部</button>
-  <button onclick="filterType('person')" id="btn-person">人物</button>
-  <button onclick="filterType('org')" id="btn-org">机构</button>
-  <button onclick="filterType('topic')" id="btn-topic">主题</button>
-  <button onclick="filterType('news')" id="btn-news">新闻</button>
-</div>
-
+<header><a href="index.html">← 返回仪表板</a><h1>知识图谱</h1><div class="legend" aria-label="节点类型"><span class="news">新闻</span><span class="person">人物</span><span class="org">机构</span><span class="topic">主题</span></div></header>
+<svg id="graph" role="img" aria-label="新闻、人物、机构、主题的关联图。可以使用下方筛选按钮或键盘选择节点。"></svg>
+<p id="notice" class="notice" role="status" aria-live="polite">正在加载图谱数据快照…</p>
+<div class="tooltip" id="tooltip" role="tooltip"><strong id="tooltip-label"></strong><small id="tooltip-info"></small></div>
+<div class="controls" role="group" aria-label="筛选节点类型"><button type="button" data-type="all" class="active" aria-pressed="true">全部</button><button type="button" data-type="person" aria-pressed="false">人物</button><button type="button" data-type="org" aria-pressed="false">机构</button><button type="button" data-type="topic" aria-pressed="false">主题</button><button type="button" data-type="news" aria-pressed="false">新闻</button></div>
+<aside id="detail" class="detail" hidden aria-live="polite"><h2 id="detail-label"></h2><p id="detail-info"></p><p id="detail-note">连线表示本数据集中记录的关联或共现，不等于因果关系；中心性数值也不代表现实中的重要性。</p><button id="detail-close" type="button">关闭详情</button></aside>
 <script>
-const colors = { news: '#4f8ff7', person: '#e74c3c', org: '#2ecc71', topic: '#f39c12' };
-const baseSizes = { news: 3, person: 5, org: 4, topic: 5 };
-function nodeRadius(d) {
-  const pr = d.pagerank || 0;
-  const scale = d.type === 'news' ? 15 : 20;
-  return baseSizes[d.type] + pr * scale;
+'use strict';
+const colors = {news:'#8ab6ff',person:'#ff8b92',org:'#85d8a5',topic:'#ffca80'};
+const radii = {news:4,person:6,org:5,topic:6};
+let simulation, circles, labels, lines, selectedType = 'all';
+const $ = id => document.getElementById(id);
+function radius(node) {
+  const score = Number(node.pagerank);
+  const safe = Number.isFinite(score) ? Math.max(0,Math.min(1,score)) : 0;
+  return (radii[node.type] || 4) + safe * (node.type === 'news' ? 14 : 18);
 }
-
-let graphData, simulation, svg, g, zoom;
-
-async function loadGraph() {
-  const resp = await fetch('../data/graph.json');
-  if (!resp.ok) throw new Error('graph.json not found. Run: cd db && python3 export_graph.py');
-  return resp.json();
+function showDetail(node) {
+  $('detail-label').textContent = String(node.label || node.id || '未知节点');
+  const info = [node.type,node.date, node.count == null ? null : `${node.count} 条关联报道`];
+  $('detail-info').textContent = info.filter(value => value !== null && value !== undefined).join(' · ');
+  $('detail').hidden = false;
+  $('detail-close').focus();
 }
-
-function initSVG() {
-  svg = d3.select('#graph');
-  const w = window.innerWidth, h = window.innerHeight;
-  svg.attr('viewBox', [0, 0, w, h]);
-  g = svg.append('g');
-
-  zoom = d3.zoom().scaleExtent([0.15, 5]).on('zoom', (e) => g.attr('transform', e.transform));
-  svg.call(zoom);
-
-  return { w, h };
-}
-
-function runSimulation(data, w, h) {
-  const nodes = data.nodes.map(d => ({ ...d }));
-  const nodeMap = new Map(nodes.map(n => [n.id, n]));
-  const edges = data.edges.filter(e => nodeMap.has(e.source) && nodeMap.has(e.target));
-
-  simulation = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(edges).id(d => d.id).distance(d => d.type === 'co_occur' ? 30 : 60))
-    .force('charge', d3.forceManyBody().strength(-120))
-    .force('center', d3.forceCenter(w / 2, h / 2))
-    .force('collision', d3.forceCollide().radius(d => nodeRadius(d) + 5));
-
-  // Links
-  const link = g.append('g').selectAll('line')
-    .data(edges).join('line')
-    .attr('stroke', d => {
-      if (d.type === 'co_occur') return 'rgba(231,76,60,0.3)';
-      if (d.type === 'about') return 'rgba(243,156,18,0.15)';
-      return 'rgba(255,255,255,0.12)';
-    })
-    .attr('stroke-width', d => d.type === 'co_occur' ? Math.min(d.weight, 3) : 0.6);
-
-  // Nodes
-  const node = g.append('g').selectAll('circle')
-    .data(nodes).join('circle')
-    .attr('r', d => nodeRadius(d) || 5)
-    .attr('fill', d => colors[d.type] || '#888')
-    .attr('stroke', d => d3.color(colors[d.type]).brighter(0.5))
-    .attr('stroke-width', 1)
-    .attr('opacity', d => d.type === 'news' ? 0.3 : 0.8)
-    .call(d3.drag()
-      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }));
-
-  // Labels (only for non-news nodes)
-  const label = g.append('g').selectAll('text')
-    .data(nodes.filter(d => d.type !== 'news')).join('text')
-    .text(d => d.label.length > 8 ? d.label.substring(0, 8) + '…' : d.label)
-    .attr('font-size', d => d.type === 'topic' ? 11 : 9)
-    .attr('fill', '#ccc')
-    .attr('text-anchor', 'middle')
-    .attr('dy', d => nodeRadius(d) + 12);
-
-  // Tooltip
-  const tooltip = d3.select('#tooltip');
-  node.on('mouseenter', (e, d) => {
-    tooltip.style('opacity', 1)
-      .html(`<div class="label">${d.label}</div>
-             <div class="info">${d.type}${d.date ? ' · ' + d.date : ''}${d.count ? ' · ' + d.count + '次' : ''}</div>`);
-  }).on('mousemove', (e) => {
-    tooltip.style('left', (e.pageX + 12) + 'px').style('top', (e.pageY - 10) + 'px');
-  }).on('mouseleave', () => tooltip.style('opacity', 0));
-
-  simulation.on('tick', () => {
-    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-    node.attr('cx', d => d.x).attr('cy', d => d.y);
-    label.attr('x', d => d.x).attr('y', d => d.y);
+function setFilter(type) {
+  selectedType = type;
+  document.querySelectorAll('.controls button').forEach(button => {
+    const active = button.dataset.type === type;
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-pressed',String(active));
   });
-
-  return { node, label };
+  if (!circles) return;
+  circles.attr('opacity',node => type === 'all' ? (node.type === 'news' ? .40 : .86) : (node.type === type ? 1 : .04));
+  labels.attr('opacity',node => type === 'all' || node.type === type ? 1 : 0);
+  lines.attr('opacity',type === 'all' ? .6 : .05);
 }
-
-function filterType(type) {
-  document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
-  document.getElementById('btn-' + type).classList.add('active');
-
-  if (type === 'all') {
-    g.selectAll('circle').attr('opacity', d => d.type === 'news' ? 0.3 : 0.8);
-    g.selectAll('text').style('opacity', 1);
-    g.selectAll('line').style('opacity', 0.6);
-  } else {
-    g.selectAll('circle').attr('opacity', d => d.type === type ? 1 : 0.05);
-    g.selectAll('text').style('opacity', d => d.type === type ? 1 : 0);
-    g.selectAll('line').style('opacity', 0.04);
-  }
+function renderGraph(graph) {
+  if (!Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) throw new Error('图谱数据格式不符合预期');
+  const width = window.innerWidth, height = window.innerHeight;
+  const nodes = graph.nodes.map(node => ({...node}));
+  const byId = new Map(nodes.map(node => [node.id,node]));
+  const edges = graph.edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)).map(edge => ({...edge}));
+  const svg = d3.select('#graph').attr('viewBox',[0,0,width,height]);
+  svg.selectAll('*').remove();
+  const layer = svg.append('g');
+  svg.call(d3.zoom().scaleExtent([.15,6]).on('zoom',event => layer.attr('transform',event.transform)));
+  simulation = d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(edges).id(node => node.id).distance(edge => edge.type === 'co_occur' ? 45 : 75))
+    .force('charge',d3.forceManyBody().strength(-120))
+    .force('center',d3.forceCenter(width/2,height/2))
+    .force('collision',d3.forceCollide().radius(node => radius(node)+5));
+  lines = layer.append('g').selectAll('line').data(edges).join('line')
+    .attr('stroke',edge => edge.type === 'co_occur' ? '#ff8b92' : edge.type === 'about' ? '#ffca80' : '#9aacc7')
+    .attr('stroke-opacity',.45).attr('stroke-width',edge => edge.type === 'co_occur' ? Math.min(Number(edge.weight)||1,3) : .8);
+  circles = layer.append('g').selectAll('circle').data(nodes).join('circle')
+    .attr('r',radius).attr('fill',node => colors[node.type] || '#bbc7d6')
+    .attr('stroke','#172235').attr('stroke-width',1.5).attr('tabindex',0)
+    .attr('role','button').attr('aria-label',node => `${node.type}：${node.label || node.id}`)
+    .call(d3.drag()
+      .on('start',(event,node) => { if (!event.active) simulation.alphaTarget(.3).restart(); node.fx=node.x;node.fy=node.y; })
+      .on('drag',(event,node) => { node.fx=event.x;node.fy=event.y; })
+      .on('end',(event,node) => { if (!event.active) simulation.alphaTarget(0);node.fx=null;node.fy=null; }));
+  labels = layer.append('g').selectAll('text').data(nodes.filter(node => node.type !== 'news')).join('text')
+    .text(node => String(node.label || '').slice(0,10))
+    .attr('font-size',10).attr('fill','#d7e3f2').attr('text-anchor','middle')
+    .attr('dy',node => radius(node)+12).attr('pointer-events','none');
+  circles.on('mouseenter',(event,node) => {
+    $('tooltip-label').textContent = String(node.label || node.id || '');
+    $('tooltip-info').textContent = [node.type,node.date,node.count].filter(value => value !== null && value !== undefined).join(' · ');
+    $('tooltip').style.opacity='1';
+  }).on('mousemove',event => {
+    $('tooltip').style.left = `${Math.min(window.innerWidth-130,event.clientX+15)}px`;
+    $('tooltip').style.top = `${Math.max(10,event.clientY-40)}px`;
+  }).on('mouseleave',() => { $('tooltip').style.opacity='0'; })
+    .on('click',(event,node) => showDetail(node))
+    .on('keydown',(event,node) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault();showDetail(node); }
+    });
+  simulation.on('tick',() => {
+    lines.attr('x1',edge => edge.source.x).attr('y1',edge => edge.source.y)
+      .attr('x2',edge => edge.target.x).attr('y2',edge => edge.target.y);
+    circles.attr('cx',node => node.x).attr('cy',node => node.y);
+    labels.attr('x',node => node.x).attr('y',node => node.y);
+  });
+  setFilter(selectedType);
+  return {nodes,edges};
 }
-
-async function init() {
-  try {
-    graphData = await loadGraph();
-    document.querySelector('.loading')?.remove();
-    const { w, h } = initSVG();
-    runSimulation(graphData, w, h);
-  } catch (err) {
-    document.body.innerHTML = `<div class="loading">${err.message}</div>`;
-  }
-}
-
-window.addEventListener('resize', () => {
-  if (svg) svg.attr('viewBox', [0, 0, window.innerWidth, window.innerHeight]);
+document.querySelectorAll('.controls button').forEach(button =>
+  button.addEventListener('click',() => setFilter(button.dataset.type)));
+$('detail-close').addEventListener('click',() => { $('detail').hidden=true; });
+window.addEventListener('resize',() => {
+  const svg = d3.select('#graph').attr('viewBox',[0,0,window.innerWidth,window.innerHeight]);
+  if (simulation) simulation.force('center',d3.forceCenter(window.innerWidth/2,window.innerHeight/2)).alpha(.3).restart();
 });
-
-init();
+(async () => {
+  try {
+    if (typeof d3 === 'undefined') throw new Error('D3 可视化脚本加载失败');
+    const response = await fetch('../data/graph.json');
+    if (!response.ok) throw new Error('未找到 graph.json，请先运行 db/export_graph.py');
+    const graph = renderGraph(await response.json());
+    $('notice').textContent = `本地数据快照：${graph.nodes.length} 个节点，${graph.edges.length} 条关联。`;
+  } catch (error) {
+    $('notice').textContent = `图谱加载失败：${String(error.message)}。请通过项目根目录的 HTTP 服务打开本页面。`;
+  }
+})();
 </script>
 </body>
 </html>
