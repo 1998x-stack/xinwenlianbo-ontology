@@ -2,27 +2,29 @@
 
 ## 当前结构与数据语义
 
-` scraper → Markdown → SQLite (schema.sql / schema_v2.sql) → AI 增强与事件聚类 → JSONL/JSON → GitHub Pages `。
+`scraper → Markdown → SQLite (schema.sql / schema_v2.sql) → AI 增强与事件聚类 → JSONL/JSON → GitHub Pages`。
 
-已审查的关键代码：`scraper/{main,scraper}.py`、`db/{main,import_data,queries,ai_client,event_engine,export_jsonl,export_graph}.py`、两份 SQLite schema、`visualize/index.html`。本次检查为静态源码审查与新增离线回归测试；**没有对真实采集站点、现有完整数据库、DeepSeek API 或浏览器部署执行端到端验收**。
+已审查的关键代码：`scraper/{main,scraper}.py`、`db/{main,import_data,queries,ai_client,event_engine,export_jsonl,export_graph}.py`、两份 SQLite schema、`visualize/{index,graph}.html`。本次检查为静态源码审查与新增离线回归测试；**没有对真实采集站点、现有完整数据库、DeepSeek API 或浏览器部署执行端到端验收**。
 
 ## 本次已实施
 
 - `db/import_data.py`：导入前开启 SQLite 外键约束；校验 `YYYYMMDD.md` 的实际日期与非空文章；全部文件共用一个事务；回滚重复 ID 对应不同内容的导入，而非静默跳过；检查 `PRAGMA foreign_key_check` 的结果。相同原始内容的重入保留已存的人工/AI 增强字段。
 - `db/export_graph.py`：基于输出新闻选取实体；图谱关联仅指向已输出节点；人物共现仅统计当前图谱选中的新闻；处理 PageRank 的孤立节点权重。
-- `tests/test_data_integrity.py`：以临时 SQLite 数据库进行独立测试；CI 覆盖 Python 3.10–3.13，并执行编译检查及 CLI 启动检查。
+- `visualize/index.html`：用安全 DOM API 和 `textContent` 渲染新闻、主题、人物、事件与搜索内容，不再把动态文本拼入 HTML；重建可访问的检索、时间线、统计、新闻列表、事件列表与详情弹窗；显示数据快照覆盖日期及推断标记；来源链接仅接受 `http/https`，新窗口附加 `noopener noreferrer`。
+- `tests/test_data_integrity.py` 和 `tests/test_dashboard_safety.py`：临时 SQLite 数据库回归测试、危险 DOM sink 静态检查、Node.js 脚本语法检查；CI 覆盖 Python 3.10–3.13，并执行编译检查及 CLI 启动检查。
 
 ### 兼容性与操作警告
 
 - 为兼容已有关联记录，新闻 ID 仍是播出日期 + 条目顺序的哈希；**它不能证明在新闻顺序改变之后对应的是同一条新闻**。新导入遇到标题或全文冲突时会终止整个批次并抛出提示。请先人工核对来源、备份数据库和相关增强/事件关系，再决定是否采用显式迁移流程；不要直接删除生产数据后重导。
 - 本次没有重写已跟踪的 `data/*.json*`；它们是既有快照，不能被解释为已用修改后的算法重新计算过的数据。要生成新图谱，应在独立测试数据库上执行导出并检查变化。
 - `db/main.py setup --force-reimport` 不再能忽略内容冲突；原有 `setup` 也不会自动修复错误的来源顺序或跨表引用。
+- Dashboard 的 HTML/JavaScript 静态检查**不等于浏览器安全审计**；应补充端到端安全回归。原有 `visualize/graph.html` 工具提示仍使用动态 `.html()`，需要独立加固。
 
 ## 后续优先实施项目及验收标准
 
-### P0：前端信任边界
+### P0：图谱页面信任边界与浏览器测试
 
-当前 `visualize/index.html` 使用 `innerHTML`/`insertAdjacentHTML` 拼接新闻、人物、事件、摘要、搜索词等动态内容。按 OWASP DOM XSS 指南重写动态内容渲染：对文本节点使用 `textContent`，对结构使用安全 DOM API，对受控属性使用明确的允许列表；避免只针对个别字段进行局部转义。新增浏览器层回归测试，分别覆盖 JSONL 字段、URL hash 搜索条件及事件弹窗，确保注入的标记仅作为普通文本出现。**本 PR 没有修复现有网页的这项风险，因此不要把现有网页视为已完成安全加固。**
+`visualize/graph.html` 的工具提示通过 D3 `.html()` 拼接标签。按 OWASP DOM XSS 指南将动态内容改为安全文本节点并限制可控属性。补充浏览器层回归测试，覆盖 JSONL 字段、URL hash 搜索条件、事件弹窗和图谱 tooltip，确保注入的标记只以文本展示；检查焦点管理、键盘导航、移动端界面、图表渲染与全部数据文件加载。
 
 ### P0：数据来源与推断边界
 
@@ -40,9 +42,9 @@
 
 目前结构更接近关系型实体—关系表与 JSON 图谱，不能仅凭目录名称视为完整 OWL/RDF 本体。设计明确的 `NewsItem`、`NewsEvent`、`Person`、`Organization`、`Topic`、`SourceDocument`、`Assertion` 及其关系语义，给每条断言保留原文证据位置、来源、生成过程及置信度。采用 W3C PROV-O 建模来源/活动，RDF/SHACL 执行基于 shape 的数据验证；先在受控数据样本上验证实体消歧、时间范围、多对多关系、事件拆分/合并、错误回滚，再考虑全量迁移。
 
-### P2：前端可视化改进
+### P2：可视化拓展
 
-增加“原始报道 / AI 推断 / 人工确认”标识、来源链接、日期覆盖区间、筛选结果与全量数据计数的区分、可访问性与移动端适配。图谱提供节点/边类型图例、来源详情、固定随机种子或稳定排序、边数限制与按需加载；将共现、主题关联和人工确认的因果关系用不同视觉编码展示，避免把中心性指标等同于现实重要性。
+在新 dashboard 基础上增加逐条断言的“原始报道 / AI 推断 / 人工确认”证据链。图谱提供节点/边类型图例、来源详情、稳定排序、边数限制与按需加载；将共现、主题关联和人工确认的因果关系用不同视觉编码展示，避免把中心性指标等同于现实重要性。
 
 ## 本地验证
 
@@ -54,11 +56,11 @@ python db/main.py --help
 python scraper/main.py --help
 ```
 
-该测试集使用临时数据库，既不需要 API key，也不会修改仓库的 `data/` 快照。
+测试使用临时数据库，不需要 API key，也不会修改仓库的 `data/` 快照。
 
 ## 外部技术参考
 
-- SQLite foreign key enforcement and validation: https://www.sqlite.org/foreignkeys.html and https://www.sqlite.org/pragma.html#pragma_foreign_key_check
-- OWASP DOM-based XSS Prevention: https://cheatsheetseries.owasp.org/cheatsheets/DOM_based_XSS_Prevention_Cheat_Sheet.html
+- SQLite: https://www.sqlite.org/foreignkeys.html and https://www.sqlite.org/pragma.html#pragma_foreign_key_check
+- OWASP DOM XSS: https://cheatsheetseries.owasp.org/cheatsheets/DOM_based_XSS_Prevention_Cheat_Sheet.html
 - W3C PROV-O: https://www.w3.org/TR/prov-o/
 - W3C SHACL: https://www.w3.org/TR/shacl/
