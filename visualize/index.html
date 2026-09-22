@@ -1,358 +1,255 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>新闻联播 Ontology Explorer</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>新闻联播 · 数据与事件观察</title>
 <style>
-:root {
-  --bg: #0f1117; --surface: #1a1d27; --surface2: #232738; --border: #2a2e3e;
-  --text: #e1e4e8; --text2: #8b90a0; --text3: #5a5f72; --accent: #4f8ff7;
-  --orange: #f39c12; --green: #2ecc71;
-  --radius: 10px; --radius-sm: 6px;
-  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html { font-size: 14px; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
-a { color: var(--accent); text-decoration: none; }
-::selection { background: var(--accent); color: #fff; }
-.app { max-width: 1440px; margin: 0 auto; padding: 20px 20px 40px; }
-header { margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
-header h1 { font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, #e1e4e8 0%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.subtitle { font-size: 0.9rem; color: var(--text2); margin-top: 4px; }
-.subtitle strong { color: var(--text); }
-.stats-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
-.stat-pill { padding: 6px 14px; border-radius: 20px; font-size: 0.82rem; background: var(--surface); border: 1px solid var(--border); color: var(--text2); display: flex; align-items: center; gap: 6px; }
-.stat-pill strong { color: var(--text); }
-.toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: center; }
-.search-box { flex: 1; min-width: 200px; position: relative; }
-.search-box input { width: 100%; padding: 10px 14px 10px 38px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-size: 0.95rem; font-family: var(--font); outline: none; }
-.search-box input:focus { border-color: var(--accent); }
-.search-box .icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; }
-.clear-btn { padding: 8px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text2); cursor: pointer; font-size: 0.85rem; font-family: var(--font); }
-.clear-btn:hover { border-color: var(--accent); color: var(--accent); }
-.clear-btn:disabled { opacity: 0.3; cursor: default; }
-.filter-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.filter-tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; background: var(--accent); color: #fff; cursor: pointer; }
-.filter-tag:hover { opacity: 0.8; }
-.dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.full-width { grid-column: 1 / -1; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
-.card-title { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text2); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
-.card-title .badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; background: var(--surface2); color: var(--text2); }
-/* Timeline */
-.timeline { display: flex; flex-direction: column; gap: 5px; max-height: 420px; overflow-y: auto; }
-.timeline-row { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 6px; border-radius: var(--radius-sm); transition: background .15s; }
-.timeline-row:hover { background: var(--surface2); }
-.timeline-row.active { background: rgba(79,143,247,0.12); }
-.timeline-label { min-width: 90px; font-size: 0.78rem; color: var(--text2); text-align: right; flex-shrink: 0; }
-.timeline-bar-wrap { flex: 1; height: 24px; background: var(--surface2); border-radius: 4px; overflow: hidden; min-width: 0; }
-.timeline-bar-fill { height: 100%; border-radius: 4px; background: var(--accent); opacity: 0.7; transition: width .4s ease; }
-.timeline-count { font-size: 0.75rem; color: var(--text3); min-width: 30px; flex-shrink: 0; }
-/* Topics */
-.topic-grid { display: flex; flex-wrap: wrap; gap: 6px; }
-.topic-tile { padding: 10px 14px; border-radius: var(--radius-sm); cursor: pointer; transition: all .2s ease; border: 1px solid transparent; flex: 1 1 auto; min-width: 80px; }
-.topic-tile:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
-.topic-tile.active { border-color: var(--accent); }
-.topic-tile .name { font-size: 0.82rem; font-weight: 600; line-height: 1.3; }
-.topic-tile .count { font-size: 0.7rem; opacity: 0.8; margin-top: 2px; }
-/* News List */
-.news-list { max-height: 520px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-.news-list::-webkit-scrollbar { width: 5px; }
-.news-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-.news-item { padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .15s; }
-.news-item:hover { background: rgba(79,143,247,0.04); }
-.news-item:last-child { border-bottom: none; }
-.news-item .title { font-size: 0.9rem; font-weight: 600; line-height: 1.4; }
-.news-item .meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 0.75rem; color: var(--text2); margin: 4px 0; align-items: center; }
-.news-item .meta .date-badge { padding: 1px 6px; border-radius: 3px; background: var(--surface2); }
-.news-item .excerpt { font-size: 0.78rem; color: var(--text3); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.news-item .chip-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.chip { padding: 1px 7px; border-radius: 3px; font-size: 0.7rem; color: #fff; }
-.chip.keyword { background: rgba(79,143,247,0.25); color: var(--accent); }
-.news-empty { text-align: center; padding: 40px 20px; color: var(--text3); }
-/* Person Board */
-.person-list { display: flex; flex-direction: column; gap: 5px; }
-.person-row { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 5px 8px; border-radius: var(--radius-sm); transition: background .15s; }
-.person-row:hover { background: var(--surface2); }
-.person-row.active { background: rgba(79,143,247,0.12); }
-.person-rank { width: 22px; font-size: 0.75rem; color: var(--text3); text-align: center; flex-shrink: 0; font-weight: 600; }
-.person-bar-wrap { flex: 1; height: 24px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
-.person-bar-fill { height: 100%; border-radius: 4px; transition: width .4s ease; background: var(--accent); opacity: 0.7; }
-.person-row.top1 .person-bar-fill { opacity: 1; background: linear-gradient(90deg, #f7b731, #f39c12); }
-.person-row.top2 .person-bar-fill { opacity: 0.9; background: linear-gradient(90deg, #4f8ff7, #3a7bdf); }
-.person-row.top3 .person-bar-fill { opacity: 0.85; background: linear-gradient(90deg, #2ecc71, #27ae60); }
-.person-name { min-width: 80px; font-size: 0.82rem; font-weight: 500; flex-shrink: 0; }
-.person-count { min-width: 28px; font-size: 0.78rem; color: var(--text2); text-align: right; flex-shrink: 0; }
-/* Modal */
-.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
-.modal-overlay.open { display: flex; }
-.modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); max-width: 720px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 28px; position: relative; }
-.modal-close { position: absolute; top: 16px; right: 18px; background: none; border: none; color: var(--text3); font-size: 1.5rem; cursor: pointer; }
-.modal-close:hover { color: var(--text); }
-.modal h2 { font-size: 1.2rem; font-weight: 700; line-height: 1.4; margin-bottom: 12px; padding-right: 30px; }
-.modal .detail-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; font-size: 0.82rem; color: var(--text2); }
-.modal .detail-summary { font-size: 0.88rem; line-height: 1.7; color: var(--text); padding: 12px; background: var(--surface2); border-radius: var(--radius-sm); border-left: 3px solid var(--accent); margin-bottom: 14px; }
-.modal .detail-section { margin-bottom: 14px; }
-.modal .detail-section h3 { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); margin-bottom: 6px; }
-.signal-item { padding: 8px 12px; margin: 4px 0; border-radius: var(--radius-sm); background: rgba(243,156,18,0.08); border-left: 3px solid var(--orange); font-size: 0.82rem; }
-.signal-item .sig-type { font-size: 0.7rem; padding: 1px 6px; border-radius: 3px; background: var(--orange); color: #fff; margin-right: 8px; }
-.loading-state { grid-column: 1 / -1; text-align: center; padding: 80px 20px; color: var(--text3); }
-.loading-state .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 20px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 900px) { .dashboard { grid-template-columns: 1fr; } .full-width { grid-column: 1; } }
-@media (max-width: 480px) { header { flex-direction: column; } .toolbar { flex-direction: column; } }
+:root{font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color-scheme:dark;--bg:#0b1220;--panel:#172235;--panel2:#1f3049;--line:#35465f;--text:#eef3fc;--muted:#b1c1d7;--blue:#8ab6ff;--focus:#ffdb86}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);line-height:1.5}a{color:var(--blue)}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--focus);outline-offset:2px}button:disabled{cursor:not-allowed;opacity:.5}.wrap{max-width:1500px;margin:auto;padding:24px}header{display:flex;justify-content:space-between;flex-wrap:wrap;align-items:center;gap:16px;margin-bottom:24px}h1{font-size:clamp(1.4rem,3vw,2.2rem);margin:0}h2{font-size:1.08rem;margin:0 0 14px}h3{font-size:1rem;margin:0}.muted{color:var(--muted)}.note{font-size:.85rem}.nav{display:flex;gap:16px;flex-wrap:wrap}.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:16px}.search{flex:1;min-width:220px;padding:11px 13px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:9px}.btn,.pill,.entry,.tile{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;padding:8px 12px}.btn:hover,.entry:hover,.tile:hover,.pill:hover{border-color:var(--blue)}.active{border-color:var(--blue)!important;background:#294970!important}.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}.panel{padding:19px;background:var(--panel);border:1px solid var(--line);border-radius:13px;min-width:0}.wide{grid-column:1/-1}.kpis{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 16px}.kpi{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 14px}.kpi strong{color:var(--blue);font-variant-numeric:tabular-nums}.list{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto}.entry{display:block;width:100%;text-align:left;white-space:normal}.entry strong{display:block;margin:3px 0}.entry small{color:var(--muted);display:block}.tiles{display:flex;gap:7px;flex-wrap:wrap}.tile{min-width:100px;text-align:left}.tile small{display:block;color:var(--muted)}.bar{display:block;height:5px;background:#75adff;border-radius:5px;margin-top:6px;min-width:1px}.timeline-row{display:grid;grid-template-columns:95px minmax(0,1fr) 40px;gap:9px;align-items:center}.timeline-row .bar{height:8px;margin:0}.timeline-row span:last-child{text-align:right;font-variant-numeric:tabular-nums}.timeline-list{display:flex;flex-direction:column;gap:7px;max-height:340px;overflow:auto}.timeline-row{padding:7px 9px}.tags{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0}.tag{border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:.8rem;color:var(--muted)}.empty{padding:24px;color:var(--muted);text-align:center}.status{padding:10px 14px;margin-bottom:14px;border-left:4px solid var(--blue);background:var(--panel)}dialog{color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:14px;width:min(740px,calc(100% - 24px));max-height:85vh;padding:24px}dialog::backdrop{background:#050a14df}.modal-head{display:flex;justify-content:space-between;align-items:start;gap:12px}.modal-head h2{margin-top:0;font-size:1.25rem}.modal-body section{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.modal-body p{white-space:pre-wrap;overflow-wrap:anywhere}.count{color:var(--muted);font-size:.87rem;margin-bottom:10px}@media(max-width:900px){.grid{grid-template-columns:1fr}.wide{grid-column:1}.wrap{padding:14px}}@media(prefers-reduced-motion:no-preference){button{transition:border-color .15s,background .15s}}
 </style>
 </head>
 <body>
-<div class="app">
-  <header>
-    <div><h1>新闻联播 Ontology Explorer</h1><div class="subtitle" id="subtitle">Loading...</div></div>
-  </header>
-  <div class="stats-bar" id="statsBar"></div>
-  <div class="toolbar">
-    <div class="search-box"><span class="icon">&#x1F50D;</span><input type="text" id="searchInput" placeholder="搜索标题、摘要、关键词、人物..." autocomplete="off"></div>
-    <button class="clear-btn" id="clearBtn" disabled>清除筛选</button>
-    <div class="filter-tags" id="filterTags"></div>
-  </div>
-  <div class="dashboard" id="dashboard"></div>
-</div>
-
-<div class="modal-overlay" id="modal">
-  <div class="modal">
-    <button class="modal-close" id="modalClose">&times;</button>
-    <h2 id="modalTitle"></h2>
-    <div class="detail-meta" id="modalMeta"></div>
-    <div id="modalSummary"></div>
-    <div id="modalTopics"></div>
-    <div id="modalKeywords"></div>
-    <div id="modalPeople"></div>
-    <div id="modalOrgs"></div>
-    <div id="modalSignals"></div>
-    <div id="modalText"></div>
-  </div>
-</div>
-
+<div class="wrap">
+<header><div><h1>新闻联播 · 数据与事件观察</h1><p id="coverage" class="muted note">正在加载数据…</p></div><nav class="nav" aria-label="视图导航"><a href="graph.html">知识图谱</a><a href="../README.md">项目说明</a></nav></header>
+<p id="status" class="status" role="status" aria-live="polite">正在加载本地数据快照…</p>
+<div class="toolbar"><label for="search" class="muted">检索</label><input class="search" id="search" type="search" placeholder="标题、摘要、关键词、人物、机构" autocomplete="off"><button class="btn" type="button" id="clear">清除筛选</button></div>
+<div id="filters" class="tags" aria-live="polite"></div><div id="kpis" class="kpis"></div>
+<main class="grid">
+<section class="panel wide" aria-labelledby="dates-heading"><h2 id="dates-heading">按播出日期筛选</h2><div class="timeline-list" id="dates"></div></section>
+<section class="panel" aria-labelledby="topics-heading"><h2 id="topics-heading">主题</h2><div id="topics" class="tiles"></div></section>
+<section class="panel" aria-labelledby="people-heading"><h2 id="people-heading">人物（当前筛选结果）</h2><div id="people" class="list"></div></section>
+<section class="panel wide" aria-labelledby="events-heading"><h2 id="events-heading">事件聚类（算法推断）</h2><div id="events" class="list"></div></section>
+<section class="panel wide" aria-labelledby="news-heading"><h2 id="news-heading">新闻条目</h2><p id="result-count" class="count"></p><div id="news" class="list"></div><button id="more" class="btn" type="button" hidden>显示更多</button></section>
+</main></div>
+<dialog id="detail" aria-labelledby="detail-title"><div class="modal-head"><h2 id="detail-title"></h2><button id="close" class="btn" type="button" aria-label="关闭详情">关闭</button></div><div id="detail-body" class="modal-body"></div></dialog>
 <script>
-const state = { items: [], topics: [], dates: [], events: [], filters: { date: null, topic: null, person: null, search: '' }, filtered: [] };
-const COLORS = ['#4f8ff7','#e74c3c','#f39c12','#2ecc71','#9b59b6','#1abc9c','#e91e63','#0dceda','#c0392b','#f7b731'];
-
-function topicColor(t) { return COLORS[((t.topic_id || t.name || '').length) % COLORS.length]; }
-
-async function loadData() {
-  const base = '..';
-  const [iResp, tResp, dResp, eResp] = await Promise.all([
-    fetch(base + '/data/news_items.jsonl'),
-    fetch(base + '/data/topics.json'),
-    fetch(base + '/data/dates.json'),
-    fetch(base + '/data/events.json'),
-  ]);
-  if (!iResp.ok) throw new Error('Data files not found. Run: cd db && python3 export_jsonl.py');
-  const items = (await iResp.text()).trim().split('\n').filter(Boolean).map(JSON.parse);
-  return { items, topics: await tResp.json(), dates: await dResp.json(), events: eResp.ok ? await eResp.json() : [] };
+'use strict';
+const $ = id => document.getElementById(id);
+const state = { items:[], topics:[], dates:[], events:[], filtered:[], filters:{date:null,topic:null,person:null,search:''}, shown:60 };
+let previousFocus = null;
+function node(tag, className='', value=null) {
+  const item = document.createElement(tag);
+  if (className) item.className = className;
+  if (value !== null && value !== undefined) item.textContent = String(value);
+  return item;
 }
-
-function computePersonCounts(items) {
-  const map = {};
-  for (const it of items) for (const p of (it.people || [])) { const n = p.name_chinese || p.name; map[n] = (map[n] || 0) + 1; }
-  return Object.entries(map).map(([n, c]) => ({ name: n, count: c })).sort((a, b) => b.count - a.count);
+function add(parent, ...children) { parent.append(...children); return parent; }
+function clear(parent) { parent.replaceChildren(); return parent; }
+function text(value) { return value === null || value === undefined ? '' : String(value); }
+function empty(parent, message) { add(parent, node('p','empty',message)); }
+function action(label, handler, className='btn') {
+  const button = node('button', className, label);
+  button.type = 'button'; button.addEventListener('click', handler);
+  return button;
 }
-
-function applyFilters() {
-  let f = state.items;
-  const { date, topic, person, search } = state.filters;
-  if (date) f = f.filter(it => it.broadcast_date === date);
-  if (topic) f = f.filter(it => (it.topics || []).some(t => t.topic_id === topic || t.name === topic));
-  if (person) f = f.filter(it => (it.people || []).some(p => (p.name_chinese || p.name) === person));
-  if (search) { const q = search.toLowerCase(); f = f.filter(it => it.title.toLowerCase().includes(q) || (it.summary || '').toLowerCase().includes(q) || (it.keywords || []).some(k => (k || '').toLowerCase().includes(q))); }
-  state.filtered = f;
+function updateFilter(key, value) {
+  state.filters[key] = state.filters[key] === value ? null : value;
+  state.shown = 60; syncHash(); render();
 }
-
-function setFilter(key, val) { if (state.filters[key] === val) state.filters[key] = null; else state.filters[key] = val; applyFilters(); saveHash(); renderAll(); }
-function clearFilters() { state.filters = { date: null, topic: null, person: null, search: '' }; document.getElementById('searchInput').value = ''; applyFilters(); saveHash(); renderAll(); }
-function hasFilters() { const f = state.filters; return f.date || f.topic || f.person || f.search; }
-function saveHash() { const p = []; const f = state.filters; if (f.date) p.push('date=' + encodeURIComponent(f.date)); if (f.topic) p.push('topic=' + encodeURIComponent(f.topic)); if (f.person) p.push('person=' + encodeURIComponent(f.person)); if (f.search) p.push('search=' + encodeURIComponent(f.search)); window.location.hash = p.length ? '#' + p.join('&') : ''; }
-function loadHash() { if (!window.location.hash) return; const p = new URLSearchParams(window.location.hash.slice(1)); state.filters.date = p.get('date') || null; state.filters.topic = p.get('topic') || null; state.filters.person = p.get('person') || null; const s = p.get('search'); if (s) { state.filters.search = s; document.getElementById('searchInput').value = s; } applyFilters(); }
-
-function renderAll() {
-  const db = document.getElementById('dashboard'); db.innerHTML = '';
-  renderStats(); renderTimeline(db); renderTopicGrid(db); renderNewsList(db); renderPersonBoard(db); renderEventGantt(db); renderFilterTags();
-  const items = state.items, dates = state.dates;
-  const auCount = new Set(items.flatMap(it => (it.people || []).map(p => p.name_chinese || p.name))).size;
-  document.getElementById('subtitle').innerHTML = items.length ? `<strong>${dates.length}</strong> 天 · <strong>${items.length}</strong> 条新闻 · <strong>${auCount}</strong> 位人物 · <strong>${state.topics.length}</strong> 个主题` : 'Loading...';
-  document.getElementById('clearBtn').disabled = !hasFilters();
+function syncHash() {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(state.filters)) if (value) params.set(key, value);
+  const url = new URL(window.location.href);
+  url.hash = params.toString();
+  history.replaceState(null, '', url);
 }
-
-function renderStats() {
-  const items = state.filtered;
-  const enhanced = items.filter(it => it.summary).length;
-  const signals = items.flatMap(it => ((it.tags || {})._policy_signals || []));
-  document.getElementById('statsBar').innerHTML = `<div class="stat-pill">筛选结果 <strong>${items.length}</strong> 条</div><div class="stat-pill">AI增强 <strong>${enhanced}</strong> 条</div>${signals.length ? `<div class="stat-pill" style="border-color:var(--orange);color:var(--orange)">政策信号 <strong>${signals.length}</strong> 条</div>` : ''}`;
+function readHash() {
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  for (const key of Object.keys(state.filters)) state.filters[key] = params.get(key) || (key === 'search' ? '' : null);
+  $('search').value = state.filters.search;
 }
-
-function renderFilterTags() {
-  const c = document.getElementById('filterTags'), f = state.filters;
-  const tags = [];
-  if (f.date) tags.push({ key: 'date', label: f.date });
-  if (f.topic) { const t = state.topics.find(t => t.topic_id === f.topic || t.name === f.topic); tags.push({ key: 'topic', label: t ? t.name : f.topic }); }
-  if (f.person) tags.push({ key: 'person', label: f.person });
-  if (f.search) tags.push({ key: 'search', label: '"' + f.search + '"' });
-  if (!tags.length) { c.innerHTML = ''; return; }
-  c.innerHTML = tags.map(t => `<span class="filter-tag" data-key="${t.key}">${t.label}<span style="margin-left:2px;font-size:1rem">&times;</span></span>`).join('');
-  c.querySelectorAll('.filter-tag').forEach(el => el.addEventListener('click', () => { const k = el.dataset.key; state.filters[k] = null; if (k === 'search') document.getElementById('searchInput').value = ''; applyFilters(); saveHash(); renderAll(); }));
+function filterItems() {
+  const {date,topic,person,search} = state.filters;
+  const term = (search || '').trim().toLocaleLowerCase();
+  state.filtered = state.items.filter(item => {
+    if (date && item.broadcast_date !== date) return false;
+    if (topic && !(item.topics || []).some(t => t.topic_id === topic || t.name === topic)) return false;
+    if (person && !(item.people || []).some(p => (p.name_chinese || p.name) === person)) return false;
+    if (!term) return true;
+    const fields = [item.title, item.summary, item.excerpt,
+      ...(item.keywords || []), ...(item.people || []).map(p => p.name_chinese || p.name),
+      ...(item.organizations || []).map(o => o.name)];
+    return fields.some(field => text(field).toLocaleLowerCase().includes(term));
+  });
 }
-
-function renderTimeline(db) {
-  const maxItems = Math.max(...state.dates.map(d => d.item_count), 1);
-  let h = `<div class="card full-width"><div class="card-title">每日新闻数量 <span class="badge">点击筛选</span></div><div class="timeline">`;
-  for (const d of state.dates) {
-    const active = state.filters.date === d.date;
-    h += `<div class="timeline-row${active ? ' active' : ''}" data-date="${d.date}"><div class="timeline-label">${d.date}</div><div class="timeline-bar-wrap"><div class="timeline-bar-fill" style="width:${(d.item_count / maxItems * 100).toFixed(1)}%"></div></div><div class="timeline-count">${d.item_count}</div></div>`;
+function renderFilters() {
+  const target = clear($('filters'));
+  const descriptions = {date:'日期',topic:'主题',person:'人物',search:'检索'};
+  for (const [key,value] of Object.entries(state.filters)) {
+    if (value) add(target, action(`${descriptions[key]}：${value} ×`, () => {
+      state.filters[key] = key === 'search' ? '' : null;
+      $('search').value = state.filters.search; state.shown = 60; syncHash(); render();
+    }, 'pill'));
   }
-  h += `</div></div>`; db.insertAdjacentHTML('beforeend', h);
-  db.querySelectorAll('.timeline-row').forEach(r => r.addEventListener('click', () => setFilter('date', r.dataset.date)));
+  $('clear').disabled = !Object.values(state.filters).some(Boolean);
 }
-
-function renderTopicGrid(db) {
-  const top = [...state.topics].sort((a, b) => b.article_count - a.article_count).slice(0, 15);
-  const mx = top[0]?.article_count || 1;
-  let h = `<div class="card"><div class="card-title">主题 <span class="badge">${state.topics.length} total</span></div><div class="topic-grid">`;
-  for (const t of top) {
-    const active = state.filters.topic === t.topic_id, color = topicColor(t);
-    h += `<div class="topic-tile${active ? ' active' : ''}" data-topic="${t.topic_id}" style="background:${color}18;border-color:${color}33"><div class="name">${t.name}</div><div class="count">${t.article_count} 条</div></div>`;
+function renderKpis() {
+  const target = clear($('kpis'));
+  const all = state.filtered;
+  for (const [label,value] of [['当前结果',all.length],['数据总条目',state.items.length],
+    ['含摘要',all.filter(item => item.summary).length],
+    ['当前日期数',new Set(all.map(item => item.broadcast_date)).size]]) {
+    const pill = node('div','kpi'); add(pill,node('span','',label+' '),node('strong','',value)); add(target,pill);
   }
-  h += `</div></div>`; db.insertAdjacentHTML('beforeend', h);
-  db.querySelectorAll('.topic-tile').forEach(el => el.addEventListener('click', () => setFilter('topic', el.dataset.topic)));
 }
-
-function renderNewsList(db) {
-  const items = state.filtered;
-  let h = `<div class="card"><div class="card-title">新闻列表 <span class="badge">${items.length} / ${state.items.length}</span></div><div class="news-list">`;
-  if (!items.length) { h += `<div class="news-empty">没有匹配当前筛选条件的新闻。</div>`; }
-  else for (const it of items) {
-    const people = (it.people || []).map(p => p.name_chinese || p.name).join(', ');
-    h += `<div class="news-item" data-id="${it.news_id}"><div class="meta"><span class="date-badge">${it.broadcast_date}</span>${people ? `<span>${people}</span>` : ''}${it.word_count ? `<span>${it.word_count.toLocaleString()} 字</span>` : ''}</div><div class="title">${it.title}</div>`;
-    const kws = it.keywords || [];
-    if (kws.length) h += `<div class="chip-row">${kws.slice(0, 6).map(k => `<span class="chip keyword">${k}</span>`).join('')}</div>`;
-    if (it.topics && it.topics.length) h += `<div class="chip-row">${it.topics.slice(0, 4).map(t => `<span class="chip" style="background:${topicColor(t)}">${t.name}</span>`).join('')}</div>`;
-    const excerpt = it.summary || it.excerpt || '';
-    if (excerpt) h += `<div class="excerpt">${excerpt.substring(0, 200)}${excerpt.length >= 200 ? '...' : ''}</div>`;
-    h += `</div>`;
+function renderDates() {
+  const target = clear($('dates'));
+  const maximum = Math.max(1,...state.dates.map(d => Number(d.item_count) || 0));
+  for (const date of state.dates) {
+    const button = action('', () => updateFilter('date', date.date),
+      'entry timeline-row' + (state.filters.date === date.date ? ' active' : ''));
+    add(button,node('span','',date.date));
+    const track = node('span'); const bar = node('span','bar');
+    bar.style.width = `${Math.min(100,Math.max(0,(Number(date.item_count)||0)/maximum*100))}%`;
+    add(track,bar); add(button,track,node('span','',Number(date.item_count)||0)); add(target,button);
   }
-  h += `</div></div>`; db.insertAdjacentHTML('beforeend', h);
-  db.querySelectorAll('.news-item').forEach(el => el.addEventListener('click', () => { const it = state.items.find(x => x.news_id === el.dataset.id); if (it) showModal(it); }));
+  if (!state.dates.length) empty(target,'暂无日期统计');
 }
-
-function renderPersonBoard(db) {
-  const people = computePersonCounts(state.filtered);
-  const top = people.slice(0, 15), mx = top[0]?.count || 1;
-  let h = `<div class="card full-width"><div class="card-title">人物榜 <span class="badge">${people.length} 位</span></div><div class="person-list">`;
-  for (let i = 0; i < top.length; i++) {
-    const p = top[i], active = state.filters.person === p.name, rc = i < 3 ? ` top${i + 1}` : '';
-    h += `<div class="person-row${active ? ' active' : ''}${rc}" data-person="${p.name}"><div class="person-rank">${i + 1}</div><div class="person-name">${p.name}</div><div class="person-bar-wrap"><div class="person-bar-fill" style="width:${(p.count / mx * 100).toFixed(1)}%"></div></div><div class="person-count">${p.count}</div></div>`;
+function renderTopics() {
+  const target = clear($('topics'));
+  const topics = [...state.topics].sort((a,b) => (b.article_count||0)-(a.article_count||0)).slice(0,24);
+  for (const topic of topics) {
+    const id = topic.topic_id || topic.name;
+    const button = action(topic.name, () => updateFilter('topic',id),
+      'tile' + (state.filters.topic === id ? ' active' : ''));
+    add(button,node('small','',`${Number(topic.article_count)||0} 条`)); add(target,button);
   }
-  h += `</div></div>`; db.insertAdjacentHTML('beforeend', h);
-  db.querySelectorAll('.person-row').forEach(r => r.addEventListener('click', () => setFilter('person', r.dataset.person)));
+  if (!topics.length) empty(target,'暂无主题数据');
 }
-
-function renderEventGantt(db) {
-  if (!state.events.length) return;
-  const top = [...state.events].sort((a,b) => (b.heat_score||0) - (a.heat_score||0)).slice(0, 10);
-  const importanceColors = {critical:'#e74c3c',major:'#f39c12',notable:'#4f8ff7',routine:'#7f8c8d'};
-  let h = '<div class="card full-width"><div class="card-title">事件时间线 <span class="badge">' + state.events.length + ' events</span></div><div style="display:flex;flex-direction:column;gap:6px">';
-  for (const e of top) {
-    const color = importanceColors[e.importance] || '#7f8c8d';
-    h += '<div class="news-item" data-eid="' + e.event_id + '" style="cursor:pointer"><div class="title">' + e.name.substring(0,40) + '</div><div class="meta"><span style="color:' + color + '">' + e.importance + '</span><span>' + e.status + '</span><span>' + e.first_date + ' → ' + e.last_date + '</span><span>' + e.news_count + ' items</span></div></div>';
+function renderPeople() {
+  const target = clear($('people')); const counts = new Map();
+  for (const item of state.filtered) for (const person of (item.people || [])) {
+    const name = text(person.name_chinese || person.name);
+    if (name) counts.set(name,(counts.get(name)||0)+1);
   }
-  h += '</div></div>';
-  db.insertAdjacentHTML('beforeend', h);
-  db.querySelectorAll('[data-eid]').forEach(el => el.addEventListener('click', () => {
-    const e = state.events.find(x => x.event_id === el.dataset.eid);
-    if (e) showEventModal(e);
-  }));
+  const people = [...counts].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0],'zh')).slice(0,20);
+  for (const [name,count] of people) add(target,
+    action(`${name} · ${count} 条`, () => updateFilter('person',name),
+      'entry' + (state.filters.person === name ? ' active' : '')));
+  if (!people.length) empty(target,'当前筛选没有人物关联');
 }
-
-function showEventModal(e) {
-  document.getElementById('modalTitle').textContent = e.name;
-  document.getElementById('modalMeta').innerHTML = '<span>' + e.type + '</span><span style="opacity:0.3">|</span><span>' + e.importance + '</span><span style="opacity:0.3">|</span><span>' + e.status + '</span><span style="opacity:0.3">|</span><span>Heat: ' + (e.heat_score||0).toFixed(0) + '</span>';
-
-  const sumEl = document.getElementById('modalSummary');
-  sumEl.innerHTML = e.summary ? '<div class="detail-summary">' + e.summary + '</div>' : '';
-  sumEl.style.display = e.summary ? '' : 'none';
-
-  let itemsHTML = '<h3>时间线</h3>';
-  for (const it of (e.items || [])) {
-    itemsHTML += '<div style="padding:4px 0;font-size:0.82rem"><span style="color:var(--text3)">' + it.date + '</span> ' + it.title.substring(0,80) + '</div>';
-  }
-  document.getElementById('modalTopics').innerHTML = itemsHTML;
-  document.getElementById('modalTopics').style.display = '';
-
-  let actorsHTML = '';
-  if (e.key_persons && e.key_persons.length) {
-    actorsHTML = '<h3>关键人物</h3><div class="chip-row">' + e.key_persons.map(p => '<span class="chip" style="background:#e74c3c">' + p.name + '</span>').join('') + '</div>';
-  }
-  document.getElementById('modalPeople').innerHTML = actorsHTML;
-  document.getElementById('modalPeople').style.display = actorsHTML ? '' : 'none';
-
-  document.getElementById('modalKeywords').style.display = 'none';
-  document.getElementById('modalOrgs').style.display = 'none';
-  document.getElementById('modalSignals').style.display = 'none';
-  document.getElementById('modalText').style.display = 'none';
-
-  document.getElementById('modal').classList.add('open');
+function field(parent, heading, value) {
+  if (value === null || value === undefined || value === '') return;
+  const section = node('section'); add(section,node('h3','',heading),node('p','',value)); add(parent,section);
 }
-
-function showModal(it) {
-  document.getElementById('modalTitle').textContent = it.title;
-  document.getElementById('modalMeta').innerHTML = `<span>${it.broadcast_date}</span><span style="opacity:0.3">|</span><span>#${it.order_in_broadcast}</span>${it.word_count ? `<span style="opacity:0.3">|</span><span>${it.word_count.toLocaleString()} 字</span>` : ''}`;
-
-  const sumEl = document.getElementById('modalSummary');
-  if (it.summary) { sumEl.innerHTML = `<div class="detail-summary">${it.summary}</div>`; sumEl.style.display = ''; } else sumEl.style.display = 'none';
-
-  const topEl = document.getElementById('modalTopics');
-  if (it.topics && it.topics.length) { topEl.innerHTML = `<h3>主题</h3><div class="chip-row">${it.topics.map(t => `<span class="chip" style="background:${topicColor(t)}">${t.name}</span>`).join('')}</div>`; topEl.style.display = ''; } else topEl.style.display = 'none';
-
-  const kwEl = document.getElementById('modalKeywords');
-  if (it.keywords && it.keywords.length) { kwEl.innerHTML = `<h3>关键词</h3><div class="chip-row">${it.keywords.map(k => `<span class="chip keyword">${k}</span>`).join('')}</div>`; kwEl.style.display = ''; } else kwEl.style.display = 'none';
-
-  const peEl = document.getElementById('modalPeople');
-  if (it.people && it.people.length) { peEl.innerHTML = `<h3>人物</h3><div class="chip-row">${it.people.map(p => `<span class="chip" style="background:${COLORS[1]}">${p.name_chinese || p.name}${p.title ? ' (' + p.title + ')' : ''}</span>`).join('')}</div>`; peEl.style.display = ''; } else peEl.style.display = 'none';
-
-  const orgEl = document.getElementById('modalOrgs');
-  if (it.organizations && it.organizations.length) { orgEl.innerHTML = `<h3>机构</h3><div class="chip-row">${it.organizations.map(o => `<span class="chip" style="background:${COLORS[3]}">${o.name}</span>`).join('')}</div>`; orgEl.style.display = ''; } else orgEl.style.display = 'none';
-
-  const sigEl = document.getElementById('modalSignals');
-  const signals = ((it.tags || {})._policy_signals || []);
-  if (signals.length) { sigEl.innerHTML = `<h3>政策信号 (${signals.length})</h3>${signals.map(s => { const sig = typeof s === 'string' ? s : (s.signal || ''); const type = typeof s === 'object' ? (s.type || '') : ''; return `<div class="signal-item">${type ? `<span class="sig-type">${type}</span>` : ''}${sig}</div>`; }).join('')}`; sigEl.style.display = ''; } else sigEl.style.display = 'none';
-
-  const txtEl = document.getElementById('modalText');
-  if (it.excerpt) { txtEl.innerHTML = `<h3>正文预览</h3><div style="font-size:0.86rem;line-height:1.8;color:var(--text2);white-space:pre-line;max-height:300px;overflow-y:auto">${it.excerpt}</div>`; txtEl.style.display = ''; } else txtEl.style.display = 'none';
-
-  document.getElementById('modal').classList.add('open');
+function chips(parent, heading, values) {
+  if (!values.length) return;
+  const section = node('section'); add(section,node('h3','',heading));
+  const tags = node('div','tags');
+  for (const value of values) if (text(value)) add(tags,node('span','tag',value));
+  add(section,tags); add(parent,section);
 }
-
-async function init() {
-  const db = document.getElementById('dashboard');
+function safeSource(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
   try {
-    db.innerHTML = `<div class="loading-state"><div class="spinner"></div><h2>加载数据中...</h2><p>正在获取新闻、主题和日期数据</p></div>`;
-    const data = await loadData();
-    state.items = data.items; state.topics = data.topics; state.dates = data.dates; state.events = data.events;
-    state.filtered = data.items;
-    loadHash(); renderAll();
-  } catch (err) {
-    console.error(err);
-    db.innerHTML = `<div class="full-width" style="text-align:center;padding:80px 20px"><div style="width:60px;height:60px;border-radius:50%;border:2px solid var(--border);margin:0 auto 20px;display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--text3)">!</div><h2 style="color:var(--text2)">数据文件未生成</h2><p style="font-size:0.9rem;color:var(--text3);margin-top:8px">请先运行:</p><code style="display:inline-block;padding:4px 10px;background:var(--surface2);border-radius:4px;margin-top:12px">cd db && python3 export_jsonl.py</code><p style="margin-top:8px;font-size:0.8rem;color:var(--text3)">${err.message}</p></div>`;
-  }
+    const url = new URL(raw);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+  } catch (_) { return null; }
 }
-
-document.getElementById('clearBtn').addEventListener('click', clearFilters);
-document.getElementById('searchInput').addEventListener('input', e => { state.filters.search = e.target.value.trim(); applyFilters(); saveHash(); renderAll(); });
-document.getElementById('modalClose').addEventListener('click', () => document.getElementById('modal').classList.remove('open'));
-document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) document.getElementById('modal').classList.remove('open'); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('modal').classList.remove('open'); });
-
-init();
+function openDetail(title) {
+  previousFocus = document.activeElement;
+  $('detail-title').textContent = text(title);
+  clear($('detail-body')); $('detail').showModal();
+}
+function showNews(item) {
+  openDetail(item.title);
+  const body = $('detail-body');
+  field(body,'播出日期 / 顺序',`${text(item.broadcast_date)} · ${text(item.order_in_broadcast)}`);
+  field(body,item.summary ? '摘要（可能由 AI 生成，请核对来源）' : '原文摘录',item.summary || item.excerpt);
+  chips(body,'主题',(item.topics||[]).map(t => t.name));
+  chips(body,'关键词',item.keywords||[]);
+  chips(body,'人物',(item.people||[]).map(p => p.name_chinese || p.name));
+  chips(body,'机构',(item.organizations||[]).map(o => o.name));
+  const url = safeSource(item.url);
+  if (url) { const section = node('section'); const link = node('a','','查看来源页面');
+    link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+    add(section,link); add(body,section); }
+}
+function showEvent(event) {
+  openDetail(event.name);
+  const body = $('detail-body');
+  field(body,'解释范围','事件聚类、类型、热度和状态属于算法或模型推断，并非独立事实核验。');
+  field(body,'时间范围',`${text(event.first_date)} → ${text(event.last_date)}`);
+  field(body,'类型 / 状态',`${text(event.type)} · ${text(event.status)}`);
+  field(body,'事件摘要（可能由 AI 生成，请核对来源）',event.summary);
+  const section = node('section'); add(section,node('h3','','关联报道'));
+  const list = node('div','list');
+  for (const linked of (event.items || []).slice(0,60)) {
+    const found = state.items.find(item => item.news_id === linked.news_id);
+    add(list,action(`${text(linked.date)} · ${text(linked.title)}`,
+      () => { $('detail').close(); if (found) showNews(found); },'entry'));
+  }
+  if (!list.childElementCount) empty(list,'暂无已关联的新闻条目');
+  add(section,list); add(body,section);
+}
+function renderEvents() {
+  const target = clear($('events'));
+  const relevant = state.events.filter(event =>
+    !state.filters.date || (event.items||[]).some(item => item.date === state.filters.date));
+  const top = relevant.sort((a,b) => (Number(b.heat_score)||0)-(Number(a.heat_score)||0)).slice(0,12);
+  for (const event of top) {
+    const button = action('', () => showEvent(event),'entry');
+    add(button,node('strong','',event.name),
+      node('small','',`${text(event.first_date)} → ${text(event.last_date)} · ${Number(event.news_count)||0} 条关联报道 · ${text(event.status)}`));
+    add(target,button);
+  }
+  if (!top.length) empty(target,'暂无匹配的事件聚类');
+}
+function renderNews() {
+  const target = clear($('news'));
+  const items = state.filtered;
+  $('result-count').textContent = `显示 ${Math.min(items.length,state.shown)} / ${items.length} 条`;
+  for (const item of items.slice(0,state.shown)) {
+    const button = action('', () => showNews(item),'entry');
+    add(button,node('small','',`${text(item.broadcast_date)} · 第 ${text(item.order_in_broadcast)} 条`),
+      node('strong','',item.title),node('small','',text(item.summary || item.excerpt).slice(0,180)));
+    add(target,button);
+  }
+  if (!items.length) empty(target,'没有匹配的新闻条目');
+  $('more').hidden = items.length <= state.shown;
+}
+function render() {
+  filterItems(); renderFilters(); renderKpis(); renderDates(); renderTopics(); renderPeople(); renderEvents(); renderNews();
+}
+async function loadData() {
+  const [news,topics,dates,events] = await Promise.all([
+    fetch('../data/news_items.jsonl'),fetch('../data/topics.json'),
+    fetch('../data/dates.json'),fetch('../data/events.json')]);
+  if (![news,topics,dates].every(response => response.ok)) throw new Error('数据文件缺失，请先运行 db/export_jsonl.py');
+  const content = await news.text();
+  const items = content.split(/\r?\n/).filter(line => line.trim()).map(line => JSON.parse(line));
+  const topicData = await topics.json(), dateData = await dates.json();
+  const eventData = events.ok ? await events.json() : [];
+  if (![items,topicData,dateData,eventData].every(Array.isArray)) throw new Error('数据格式不符合预期');
+  return {items,topics:topicData,dates:dateData,events:eventData};
+}
+$('search').addEventListener('input',event => { state.filters.search = event.target.value; state.shown = 60; syncHash(); render(); });
+$('clear').addEventListener('click',() => {
+  state.filters = {date:null,topic:null,person:null,search:''}; $('search').value = '';
+  state.shown = 60; syncHash(); render();
+});
+$('more').addEventListener('click',() => { state.shown += 60; renderNews(); });
+$('close').addEventListener('click',() => $('detail').close());
+$('detail').addEventListener('close',() => { if (previousFocus && previousFocus.isConnected) previousFocus.focus(); });
+$('detail').addEventListener('click',event => { if (event.target === $('detail')) $('detail').close(); });
+window.addEventListener('hashchange',() => { readHash(); state.shown = 60; render(); });
+(async () => {
+  try {
+    Object.assign(state,await loadData());
+    state.items.sort((a,b) => text(b.broadcast_date).localeCompare(text(a.broadcast_date)) ||
+      (Number(a.order_in_broadcast)||0)-(Number(b.order_in_broadcast)||0));
+    state.dates.sort((a,b) => text(b.date).localeCompare(text(a.date)));
+    readHash(); render();
+    const newest = state.dates[0]?.date || '未知';
+    const oldest = state.dates[state.dates.length-1]?.date || '未知';
+    $('coverage').textContent = `本地数据快照 · 覆盖 ${oldest} 至 ${newest} · 不代表实时新闻`;
+    $('status').textContent = `加载完成：${state.items.length} 条新闻、${state.events.length} 个算法事件聚类。`;
+  } catch (error) {
+    $('coverage').textContent = '无法读取数据快照';
+    $('status').textContent = `加载失败：${text(error.message)}。请通过项目根目录的 HTTP 服务打开此页面。`;
+  }
+})();
 </script>
 </body>
 </html>
