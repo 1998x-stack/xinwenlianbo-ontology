@@ -139,7 +139,7 @@ def classify_event_type(conn, event_id):
     return type_map.get(top_cat, "political")
 
 
-def compute_heat_score(conn, event_id):
+def compute_heat_score(conn, event_id, as_of_date=None):
     """Calculate heat score: frequency*0.4 + recency*0.3 + acceleration*0.2 + actor_importance*0.1"""
     rows = conn.execute("""
         SELECT n.broadcast_date FROM news_item n
@@ -154,12 +154,12 @@ def compute_heat_score(conn, event_id):
     dates = [r["broadcast_date"] for r in rows]
     n = len(dates)
     from datetime import datetime
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = as_of_date or datetime.now().strftime("%Y-%m-%d")
 
     frequency = min(n / 30.0, 1.0) * 100
     latest = dates[-1]
     days_since = _days_between(latest, today)
-    recency = max(0, 100 - days_since * (100 / 30))
+    recency = max(0, min(100, 100 - days_since * (100 / 30)))
 
     recent = sum(1 for d in dates if _days_between(d, today) <= 7)
     earlier = sum(1 for d in dates if 7 < _days_between(d, today) <= 14)
@@ -185,7 +185,7 @@ def compute_importance(heat_score):
     return "routine"
 
 
-def compute_status(conn, event_id):
+def compute_status(conn, event_id, as_of_date=None):
     """Determine lifecycle status based on coverage frequency trend."""
     rows = conn.execute("""
         SELECT n.broadcast_date FROM news_item n
@@ -199,7 +199,7 @@ def compute_status(conn, event_id):
 
     dates = [r["broadcast_date"] for r in rows]
     from datetime import datetime
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = as_of_date or datetime.now().strftime("%Y-%m-%d")
     days_since_last = _days_between(dates[-1], today)
 
     if days_since_last > 30: return "archived"
@@ -490,12 +490,14 @@ def _run_event_pipeline_in_stage(db_path, time_window_days=7, min_items=2, concu
                 done += 1
     print(f"Profiled {done}/{len(event_ids)} events")
 
-    # 5. Compute heat + status + importance
-    print("Computing scores...")
+    # 5. Compute metrics as of the newest broadcast, not wall-clock time.
+    # Historical replays are deterministic even if executed months later.
+    snapshot_date = conn.execute("SELECT MAX(broadcast_date) AS d FROM news_item").fetchone()["d"]
+    print(f"Computing scores as of {snapshot_date}...")
     for eid in event_ids:
-        heat = compute_heat_score(conn, eid)
+        heat = compute_heat_score(conn, eid, as_of_date=snapshot_date)
         importance = compute_importance(heat)
-        status = compute_status(conn, eid)
+        status = compute_status(conn, eid, as_of_date=snapshot_date)
         # Only override type if AI didn't set it (still default 'political')
         current = conn.execute("SELECT type FROM news_event WHERE event_id=?", (eid,)).fetchone()
         if current and current["type"] == "political":
