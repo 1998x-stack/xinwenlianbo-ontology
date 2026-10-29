@@ -155,6 +155,21 @@ def persist_enhancement(conn, news_id, result):
             (news_id, tid, relevance),
         )
 
+    # Organizations
+    orgs = entities.get("organizations", []) if isinstance(entities, dict) else []
+    for org in orgs[:5]:
+        oname = org.get("name", "") if isinstance(org, dict) else str(org)
+        otype = org.get("type", "government") if isinstance(org, dict) else "government"
+        if oname:
+            conn.execute(
+                "INSERT OR IGNORE INTO organization (org_id, name, type) VALUES (?, ?, ?)",
+                (oname, oname, otype),
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO news_organization (news_id, org_id) VALUES (?, ?)",
+                (news_id, oname),
+            )
+
     # People
     people = entities.get("people", []) if isinstance(entities, dict) else []
     for person in people[:5]:
@@ -170,21 +185,6 @@ def persist_enhancement(conn, news_id, result):
             conn.execute(
                 "INSERT OR IGNORE INTO news_person (news_id, person_id) VALUES (?, ?)",
                 (news_id, pname),
-            )
-
-    # Organizations
-    orgs = entities.get("organizations", []) if isinstance(entities, dict) else []
-    for org in orgs[:5]:
-        oname = org.get("name", "") if isinstance(org, dict) else str(org)
-        otype = org.get("type", "government") if isinstance(org, dict) else "government"
-        if oname:
-            conn.execute(
-                "INSERT OR IGNORE INTO organization (org_id, name, type) VALUES (?, ?, ?)",
-                (oname, oname, otype),
-            )
-            conn.execute(
-                "INSERT OR IGNORE INTO news_organization (news_id, org_id) VALUES (?, ?)",
-                (news_id, oname),
             )
 
     # Policy signals
@@ -207,7 +207,9 @@ def _enhance_one(db_path, nid, title, text):
     """Process a single news item in its own thread with its own DB connection."""
     if not text or len(text) < 50:
         return {"status": "skipped"}
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=15)
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=15000")
     conn.row_factory = sqlite3.Row
     try:
         result = enhance_news_item(conn, nid, title, text)
@@ -287,7 +289,9 @@ def enhance_all(conn, limit=0, dry_run=False, concurrency=3):
                     print(f"  ERROR: {e}")
 
     # Recalculate derived counts (concurrent inserts don't update them)
-    main_conn = sqlite3.connect(db_path)
+    main_conn = sqlite3.connect(db_path, timeout=15)
+    main_conn.execute("PRAGMA foreign_keys=ON")
+    main_conn.execute("PRAGMA busy_timeout=15000")
     main_conn.execute("""
         UPDATE topic SET article_count = (
             SELECT COUNT(*) FROM news_topic WHERE news_topic.topic_id = topic.topic_id

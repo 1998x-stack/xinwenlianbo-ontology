@@ -31,17 +31,27 @@ SCHEMA_PATH = DB_DIR / "schema.sql"
 def _get_connection():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 
 def create_database():
+    """Apply both schema generations to new and existing databases (idempotent DDL)."""
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
+    event_sql = (DB_DIR / "schema_v2.sql").read_text(encoding="utf-8")
     conn = sqlite3.connect(str(DB_PATH))
     try:
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=5000")
         conn.executescript(schema_sql)
+        conn.executescript(event_sql)
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise sqlite3.IntegrityError(f"Existing foreign key violations: {violations[:5]}")
         conn.commit()
-        print(f"Database created at: {DB_PATH}")
+        print(f"Database schema ready at: {DB_PATH}")
     except sqlite3.Error as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -62,11 +72,8 @@ def is_db_empty():
 def setup():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
     force = "--force-reimport" in sys.argv
-    if not DB_PATH.exists():
-        print("Creating database...")
-        create_database()
-    else:
-        print("Database already exists.")
+    print("Initializing/upgrading database schema...")
+    create_database()
     if is_db_empty() or force:
         scraper_dir = DB_DIR.parent / "scraper" / "output"
         md_files = list(scraper_dir.glob("*.md")) if scraper_dir.exists() else []

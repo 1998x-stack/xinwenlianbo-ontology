@@ -32,7 +32,12 @@ def parse_markdown_file(filepath):
         if line.startswith("## "):
             if current is not None:
                 items.append(current)
-            current = {"title": line[3:].strip(), "body_lines": []}
+            current = {"title": line[3:].strip(), "body_lines": [], "url": None}
+        elif current is not None and line.startswith("<!-- source_url: ") and line.endswith(" -->"):
+            url = line[len("<!-- source_url: "):-len(" -->")].strip()
+            if not url.startswith(("https://", "http://")):
+                raise ValueError(f"Invalid source URL in {filepath}: {url[:80]}")
+            current["url"] = url
         elif current is not None and line.strip() != "---" and not line.startswith("# "):
             if line.strip():
                 current["body_lines"].append(line)
@@ -82,6 +87,7 @@ def import_data(db_path, data_dir=None):
                     raise ValueError(f"No news items found in {filepath.name}")
                 for order, item in enumerate(items, start=1):
                     title, full_text = item["title"], item["full_text"]
+                    url = item.get("url")
                     if not title or not full_text:
                         raise ValueError(f"Empty title/body in {filepath.name}, item {order}")
                     news_id = make_news_id(broadcast_date, order)
@@ -96,12 +102,17 @@ def import_data(db_path, data_dir=None):
                                 f"(ID {news_id}); reconcile the source and existing "
                                 "enrichments before re-importing"
                             )
+                        if url:
+                            conn.execute(
+                                "UPDATE news_item SET url=COALESCE(url, ?) WHERE news_id=?",
+                                (url, news_id),
+                            )
                         continue
                     conn.execute(
                         "INSERT INTO news_item "
-                        "(news_id, title, full_text, broadcast_date, order_in_broadcast, word_count) "
-                        "VALUES (?, ?, ?, ?, ?, ?)",
-                        (news_id, title, full_text, broadcast_date, order, len(full_text)),
+                        "(news_id, title, full_text, broadcast_date, order_in_broadcast, word_count, url) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (news_id, title, full_text, broadcast_date, order, len(full_text), url),
                     )
                     inserted += 1
                 logger.info("Checked %s: %d items", filepath.name, len(items))

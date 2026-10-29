@@ -2,6 +2,8 @@
 Clusters news items into NewsEvents by topic similarity + temporal proximity."""
 
 import hashlib, sqlite3, json, time, threading
+import tempfile
+from pathlib import Path
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from ai_client import chat
@@ -137,7 +139,7 @@ def classify_event_type(conn, event_id):
     return type_map.get(top_cat, "political")
 
 
-def compute_heat_score(conn, event_id):
+def compute_heat_score(conn, event_id, as_of_date=None):
     """Calculate heat score: frequency*0.4 + recency*0.3 + acceleration*0.2 + actor_importance*0.1"""
     rows = conn.execute("""
         SELECT n.broadcast_date FROM news_item n
@@ -152,12 +154,12 @@ def compute_heat_score(conn, event_id):
     dates = [r["broadcast_date"] for r in rows]
     n = len(dates)
     from datetime import datetime
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = as_of_date or datetime.now().strftime("%Y-%m-%d")
 
     frequency = min(n / 30.0, 1.0) * 100
     latest = dates[-1]
     days_since = _days_between(latest, today)
-    recency = max(0, 100 - days_since * (100 / 30))
+    recency = max(0, min(100, 100 - days_since * (100 / 30)))
 
     recent = sum(1 for d in dates if _days_between(d, today) <= 7)
     earlier = sum(1 for d in dates if 7 < _days_between(d, today) <= 14)
@@ -183,7 +185,7 @@ def compute_importance(heat_score):
     return "routine"
 
 
-def compute_status(conn, event_id):
+def compute_status(conn, event_id, as_of_date=None):
     """Determine lifecycle status based on coverage frequency trend."""
     rows = conn.execute("""
         SELECT n.broadcast_date FROM news_item n
@@ -197,7 +199,7 @@ def compute_status(conn, event_id):
 
     dates = [r["broadcast_date"] for r in rows]
     from datetime import datetime
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = as_of_date or datetime.now().strftime("%Y-%m-%d")
     days_since_last = _days_between(dates[-1], today)
 
     if days_since_last > 30: return "archived"
@@ -265,7 +267,8 @@ Return JSON:
             text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
         return json.loads(text)
     except json.JSONDecodeError:
-        return {"name": f"事件_{event_id[:8]}", "type": "political", "summary": result_text[:300], "importance": "notable"}
+        # Invalid model output must not be promoted as a verified event profile.
+        return None
 
 
 def generate_event_report(conn, event_id):
@@ -354,9 +357,11 @@ def find_related_events(conn, event_id, max_related=5):
     return related
 
 
-def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
-    """Full pipeline: detect events → persist → AI profile → link actors → score."""
-    conn = sqlite3.connect(db_path)
+def _run_event_pipeline_in_stage(db_path, time_window_days=7, min_items=2, concurrency=3):
+    """Build an event generation on an isolated SQLite snapshot."""
+    conn = sqlite3.connect(db_path, timeout=15)
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=15000")
     conn.row_factory = sqlite3.Row
 
     # 1. Clear previous event data (idempotent re-run)
@@ -455,7 +460,9 @@ def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
     _lock = threading.Lock()
 
     def _profile_one(eid):
-        c = sqlite3.connect(db_path)
+        c = sqlite3.connect(db_path, timeout=15)
+        c.execute("PRAGMA foreign_keys=ON")
+        c.execute("PRAGMA busy_timeout=15000")
         c.row_factory = sqlite3.Row
         try:
             profile = generate_event_profile(c, eid)
@@ -483,13 +490,20 @@ def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
             if f.result():
                 done += 1
     print(f"Profiled {done}/{len(event_ids)} events")
+    if done != len(event_ids):
+        raise RuntimeError(
+            f"Event profiles incomplete: {done}/{len(event_ids)}; "
+            "refusing to publish a partial event generation"
+        )
 
-    # 5. Compute heat + status + importance
-    print("Computing scores...")
+    # 5. Compute metrics as of the newest broadcast, not wall-clock time.
+    # Historical replays are deterministic even if executed months later.
+    snapshot_date = conn.execute("SELECT MAX(broadcast_date) AS d FROM news_item").fetchone()["d"]
+    print(f"Computing scores as of {snapshot_date}...")
     for eid in event_ids:
-        heat = compute_heat_score(conn, eid)
+        heat = compute_heat_score(conn, eid, as_of_date=snapshot_date)
         importance = compute_importance(heat)
-        status = compute_status(conn, eid)
+        status = compute_status(conn, eid, as_of_date=snapshot_date)
         # Only override type if AI didn't set it (still default 'political')
         current = conn.execute("SELECT type FROM news_event WHERE event_id=?", (eid,)).fetchone()
         if current and current["type"] == "political":
@@ -524,3 +538,57 @@ def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
     print(f"Pipeline complete: {stats}")
     conn.close()
     return stats
+
+
+# Publishing is intentionally separate from AI execution: failures in the staged
+# build must never delete or partially overwrite the last good event generation.
+_EVENT_TABLES = (
+    "news_event", "news_event_link", "event_person",
+    "event_organization", "event_relation",
+)
+
+
+def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
+    """Rebuild events in a private copy, then publish all event tables atomically.
+
+    Existing rows are preserved if any step, including AI calls or the final
+    foreign-key validation, fails. The source corpus should not be mutated
+    concurrently; a changed source may invalidate a staged publication.
+    """
+    db_path = str(Path(db_path).resolve())
+    if not Path(db_path).is_file():
+        raise FileNotFoundError(f"Ontology database does not exist: {db_path}")
+    with tempfile.TemporaryDirectory(prefix="ontology-events-") as workdir:
+        stage_path = str(Path(workdir) / "stage.db")
+        with sqlite3.connect(db_path, timeout=15) as source, sqlite3.connect(stage_path) as target:
+            source.backup(target)
+
+        stats = _run_event_pipeline_in_stage(
+            stage_path, time_window_days=time_window_days,
+            min_items=min_items, concurrency=concurrency,
+        )
+
+        live = sqlite3.connect(db_path, timeout=15, isolation_level=None)
+        try:
+            live.execute("PRAGMA foreign_keys=ON")
+            live.execute("PRAGMA busy_timeout=15000")
+            live.execute("ATTACH DATABASE ? AS staging", (stage_path,))
+            try:
+                live.execute("BEGIN IMMEDIATE")
+                for table in reversed(_EVENT_TABLES):
+                    live.execute(f"DELETE FROM {table}")
+                for table in _EVENT_TABLES:
+                    live.execute(f"INSERT INTO {table} SELECT * FROM staging.{table}")
+                violations = live.execute("PRAGMA foreign_key_check").fetchall()
+                if violations:
+                    raise sqlite3.IntegrityError(f"Staged event graph violates foreign keys: {violations[:5]}")
+                live.execute("COMMIT")
+            except BaseException:
+                if live.in_transaction:
+                    live.execute("ROLLBACK")
+                raise
+            finally:
+                live.execute("DETACH DATABASE staging")
+        finally:
+            live.close()
+        return stats

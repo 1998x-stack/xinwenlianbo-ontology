@@ -358,3 +358,27 @@ result = chat(prompt, model="gpt-4o", base="https://api.openai.com")
 - `docs/superpowers/plans/2026-06-10-xinwenlianbo-phase1.md` — Phase 1 实施计划
 - `docs/superpowers/plans/2026-06-10-xinwenlianbo-phase2.md` — Phase 2 实施计划
 - `docs/xinwenlianbo-ontology.md` — 原始企业级 Ontology 设计
+
+---
+
+## 工程质量与升级路线（2026-10-29）
+
+详见 [全面架构审查与优化路线图](docs/ARCHITECTURE_OPTIMIZATION.md)。
+
+Stage 01 安全改造包括：
+
+- 初始化时同时加载 Phase 1 和 Phase 2 数据库表（旧数据库可重复执行幂等 DDL）。
+- 为新的 Markdown 新闻保存原始 URL，并在内容未变化时补充历史条目的 URL。
+- 事件重建先在临时 SQLite 副本运行，完成后用单一事务发布，失败保留旧版事件。
+- 事件热度与状态按语料最新播出日重放，避免历史结果随系统日期意外变化。
+- 增加来源与事务回归测试，以及不依赖 API 的事件质量诊断。
+
+**注意：** 仓库中已提交的数据为历史快照；原有事件聚类存在 331/386 条新闻进入一个巨型连通分量的问题，尚未以经过评测的新算法修复。历史 JSON 导出也不代表修改代码后的重新生成结果。算法推断不等于现实因果关系或独立核实结论。
+
+检查历史事件聚类集中度：
+
+```bash
+python eval/event_quality.py
+```
+
+输出包括最大事件规模、占比、未归属新闻和无效事件引用。这是异常诊断，不是聚类准确率；算法优劣必须通过人工标注黄金集评价。

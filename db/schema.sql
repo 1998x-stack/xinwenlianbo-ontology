@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS news_item (
     updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_news_broadcast_date ON news_item(broadcast_date);
-CREATE INDEX idx_news_title ON news_item(title);
+CREATE INDEX IF NOT EXISTS idx_news_broadcast_date ON news_item(broadcast_date);
+CREATE INDEX IF NOT EXISTS idx_news_title ON news_item(title);
 
 -- person: individual mentioned in news
 CREATE TABLE IF NOT EXISTS person (
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS person (
         ON DELETE SET NULL ON UPDATE CASCADE
 );
 
-CREATE INDEX idx_person_name ON person(name_chinese);
+CREATE INDEX IF NOT EXISTS idx_person_name ON person(name_chinese);
 
 -- organization: institutional entity
 CREATE TABLE IF NOT EXISTS organization (
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS organization (
     updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_org_name ON organization(name);
+CREATE INDEX IF NOT EXISTS idx_org_name ON organization(name);
 
 -- topic: policy/research topic
 CREATE TABLE IF NOT EXISTS topic (
@@ -57,8 +57,8 @@ CREATE TABLE IF NOT EXISTS topic (
     updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_topic_name ON topic(name);
-CREATE INDEX idx_topic_category ON topic(category);
+CREATE INDEX IF NOT EXISTS idx_topic_name ON topic(name);
+CREATE INDEX IF NOT EXISTS idx_topic_category ON topic(category);
 
 -- junction: news_item mentions person
 CREATE TABLE IF NOT EXISTS news_person (
@@ -70,8 +70,8 @@ CREATE TABLE IF NOT EXISTS news_person (
     UNIQUE (news_id, person_id)
 );
 
-CREATE INDEX idx_np_news ON news_person(news_id);
-CREATE INDEX idx_np_person ON news_person(person_id);
+CREATE INDEX IF NOT EXISTS idx_np_news ON news_person(news_id);
+CREATE INDEX IF NOT EXISTS idx_np_person ON news_person(person_id);
 
 -- junction: news_item mentions organization
 CREATE TABLE IF NOT EXISTS news_organization (
@@ -83,8 +83,8 @@ CREATE TABLE IF NOT EXISTS news_organization (
     UNIQUE (news_id, org_id)
 );
 
-CREATE INDEX idx_no_news ON news_organization(news_id);
-CREATE INDEX idx_no_org ON news_organization(org_id);
+CREATE INDEX IF NOT EXISTS idx_no_news ON news_organization(news_id);
+CREATE INDEX IF NOT EXISTS idx_no_org ON news_organization(org_id);
 
 -- junction: news_item about topic
 CREATE TABLE IF NOT EXISTS news_topic (
@@ -98,5 +98,5 @@ CREATE TABLE IF NOT EXISTS news_topic (
     UNIQUE (news_id, topic_id)
 );
 
-CREATE INDEX idx_nt_news ON news_topic(news_id);
-CREATE INDEX idx_nt_topic ON news_topic(topic_id);
+CREATE INDEX IF NOT EXISTS idx_nt_news ON news_topic(news_id);
+CREATE INDEX IF NOT EXISTS idx_nt_topic ON news_topic(topic_id);

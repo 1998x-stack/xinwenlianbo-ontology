@@ -29,6 +29,9 @@ def save_markdown(items, date_str, output_dir):
         f.write(f"# 新闻联播 {broadcast_date}\n\n")
         for item in items:
             f.write(f"## {item['title']}\n\n")
+            # Preserve source provenance without changing the visible article text.
+            if item.get("url"):
+                f.write(f"<!-- source_url: {item['url']} -->\n\n")
             f.write(f"{item['full_text']}\n\n")
             f.write("---\n\n")
 
