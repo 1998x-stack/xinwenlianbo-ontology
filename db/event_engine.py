@@ -2,6 +2,8 @@
 Clusters news items into NewsEvents by topic similarity + temporal proximity."""
 
 import hashlib, sqlite3, json, time, threading
+import tempfile
+from pathlib import Path
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from ai_client import chat
@@ -354,9 +356,11 @@ def find_related_events(conn, event_id, max_related=5):
     return related
 
 
-def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
-    """Full pipeline: detect events → persist → AI profile → link actors → score."""
-    conn = sqlite3.connect(db_path)
+def _run_event_pipeline_in_stage(db_path, time_window_days=7, min_items=2, concurrency=3):
+    """Build an event generation on an isolated SQLite snapshot."""
+    conn = sqlite3.connect(db_path, timeout=15)
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=15000")
     conn.row_factory = sqlite3.Row
 
     # 1. Clear previous event data (idempotent re-run)
@@ -455,7 +459,9 @@ def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
     _lock = threading.Lock()
 
     def _profile_one(eid):
-        c = sqlite3.connect(db_path)
+        c = sqlite3.connect(db_path, timeout=15)
+        c.execute("PRAGMA foreign_keys=ON")
+        c.execute("PRAGMA busy_timeout=15000")
         c.row_factory = sqlite3.Row
         try:
             profile = generate_event_profile(c, eid)
@@ -524,3 +530,57 @@ def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
     print(f"Pipeline complete: {stats}")
     conn.close()
     return stats
+
+
+# Publishing is intentionally separate from AI execution: failures in the staged
+# build must never delete or partially overwrite the last good event generation.
+_EVENT_TABLES = (
+    "news_event", "news_event_link", "event_person",
+    "event_organization", "event_relation",
+)
+
+
+def run_event_pipeline(db_path, time_window_days=7, min_items=2, concurrency=3):
+    """Rebuild events in a private copy, then publish all event tables atomically.
+
+    Existing rows are preserved if any step, including AI calls or the final
+    foreign-key validation, fails. The source corpus should not be mutated
+    concurrently; a changed source may invalidate a staged publication.
+    """
+    db_path = str(Path(db_path).resolve())
+    if not Path(db_path).is_file():
+        raise FileNotFoundError(f"Ontology database does not exist: {db_path}")
+    with tempfile.TemporaryDirectory(prefix="ontology-events-") as workdir:
+        stage_path = str(Path(workdir) / "stage.db")
+        with sqlite3.connect(db_path, timeout=15) as source, sqlite3.connect(stage_path) as target:
+            source.backup(target)
+
+        stats = _run_event_pipeline_in_stage(
+            stage_path, time_window_days=time_window_days,
+            min_items=min_items, concurrency=concurrency,
+        )
+
+        live = sqlite3.connect(db_path, timeout=15, isolation_level=None)
+        try:
+            live.execute("PRAGMA foreign_keys=ON")
+            live.execute("PRAGMA busy_timeout=15000")
+            live.execute("ATTACH DATABASE ? AS staging", (stage_path,))
+            try:
+                live.execute("BEGIN IMMEDIATE")
+                for table in reversed(_EVENT_TABLES):
+                    live.execute(f"DELETE FROM {table}")
+                for table in _EVENT_TABLES:
+                    live.execute(f"INSERT INTO {table} SELECT * FROM staging.{table}")
+                violations = live.execute("PRAGMA foreign_key_check").fetchall()
+                if violations:
+                    raise sqlite3.IntegrityError(f"Staged event graph violates foreign keys: {violations[:5]}")
+                live.execute("COMMIT")
+            except BaseException:
+                if live.in_transaction:
+                    live.execute("ROLLBACK")
+                raise
+            finally:
+                live.execute("DETACH DATABASE staging")
+        finally:
+            live.close()
+        return stats
