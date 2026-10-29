@@ -59,6 +59,16 @@ def build_gold(records, queue, selected_ids, *, source_sha, guideline_version):
                 source.get(day_key) != indexed[nid]["broadcast_date"]
             ):
                 raise ValueError(f"review source snapshot mismatch: {nid}")
+        # A decision without explicit source-grounded evidence is not gold.
+        # Evidence may be a verified short quotation, URL or source locator;
+        # it is never populated automatically by a language model.
+        for reviewer_key in ("reviewer_1", "reviewer_2"):
+            evidence = row[reviewer_key].get("evidence")
+            if not isinstance(evidence, str) or not evidence.strip():
+                raise ValueError(f"reviewer evidence missing for pair: {key}")
+        if (row["reviewer_1"].get("label") != row["reviewer_2"].get("label")
+                and not row.get("adjudication", {}).get("note")):
+            raise ValueError(f"adjudication justification missing for pair: {key}")
         reviewers.add(row["reviewer_1"]["id"])
         reviewers.add(row["reviewer_2"]["id"])
         judgments[key] = verdict
