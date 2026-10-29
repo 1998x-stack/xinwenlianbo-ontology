@@ -80,6 +80,15 @@ class ReliabilityTests(unittest.TestCase):
                 "SELECT news_id,event_id FROM news_event_link").fetchall(),
                 [("n1", "old")])
 
+    def test_failed_model_profile_cannot_replace_previous_events(self):
+        self.initialize()
+        with patch("db.event_engine.generate_event_profile", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "Event profiles incomplete"):
+                run_event_pipeline(self.database, concurrency=1)
+        with sqlite3.connect(self.database) as connection:
+            self.assertEqual(connection.execute(
+                "SELECT event_id FROM news_event").fetchall(), [("old",)])
+
     def test_publish_replaces_all_event_tables_as_one_generation(self):
         self.initialize()
 
