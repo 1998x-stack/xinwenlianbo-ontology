@@ -8,6 +8,7 @@ allowed. Keep vectors outside Git, record the exact source and model revision.
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import sys
 
@@ -63,8 +64,8 @@ def main():
         p.error("refusing to replace input data")
     if args.batch_size < 1:
         p.error("batch-size must be positive")
-    if not args.revision.strip():
-        p.error("revision is required")
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", args.revision):
+        p.error("revision must be an immutable 40-character model commit SHA")
     with args.input.open(encoding="utf-8") as fh:
         rows = [json.loads(line) for line in fh if line.strip()]
     parse_articles(rows)
