@@ -76,8 +76,9 @@ actual broadcasts.
 2. Independently annotate 100--200 initial *pairs*, covering same event, same
    topic/different event, same actor/different event, continuing events and
    topical bridges. Explicitly sample both model-positive and model-negative
-   pairs; the current queue prioritizes model positives only and is NOT
-   representative of the full candidate population.
+   pairs; the current queue deliberately stratifies model matches, topical nonmatches
+   and random controls, but still requires population-aware weighting to
+   estimate overall real-world performance.
 3. Use labels: SAME_EVENT, RELATED_NOT_SAME, DIFFERENT_EVENT, UNSURE.
    Reviewers must distinguish event *identity* from topic correlation. Require
    exact source headline and preferably source excerpts/URLs for decision;
@@ -134,3 +135,22 @@ Never report synthetic gold F1 as production accuracy. Never infer causal
 connections from co-occurrences. Report historical snapshot dates and known
 missing source URLs. Keep all experimental outputs in user-chosen files;
 do not commit regenerated data/*.json or silently publish experiments.
+
+
+## 9. Candidate recall and reviewer sampling
+
+The ablation output now explicitly separates:
+- candidate_blocking.gold_retrieval: upstream blocking recall;
+- variants.connected.edge_retrieval: accepted pair-edge recall;
+- variants.*.gold_pairwise and gold_bcubed: post-clustering partition quality.
+
+Historical unlabeled data returns null for these gold scores. If recall is poor,
+first inspect **candidate blocking** instead of only tuning cluster thresholds.
+
+`eval/make_annotation_queue.py` uses seed-stable sampling from three
+strata (model-positive, topical-unmatched, random-control). All review labels
+start null. Two independent reviewers plus adjudication are represented in
+the queue schema, but no annotation is performed automatically. Do not
+equate "topical_unmatched" with a known true negative.
+
+Use `--start` and `--end` to isolate a temporal holdout for review.
