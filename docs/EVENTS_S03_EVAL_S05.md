@@ -154,3 +154,17 @@ the queue schema, but no annotation is performed automatically. Do not
 equate "topical_unmatched" with a known true negative.
 
 Use `--start` and `--end` to isolate a temporal holdout for review.
+
+
+## 10. Review validation and adjudication
+
+After annotators independently fill two review fields, run:
+
+    python eval/validate_annotations.py /tmp/event-pair-review.jsonl
+
+The validator rejects invalid labels, duplicate pairs, reused reviewer IDs and
+improperly recorded decisions. It reports double-review coverage, unresolved
+conflicts, agreed definitive pairs, adjudications and Cohen's kappa when
+defined. UNSURE remains abstention. A completed *pair* review is not
+automatically a cluster-level gold partition. The reviewer workflow must
+enforce blindness operationally; one shared JSONL file does not do that alone.
