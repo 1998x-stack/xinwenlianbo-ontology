@@ -382,3 +382,19 @@ python eval/event_quality.py
 ```
 
 输出包括最大事件规模、占比、未归属新闻和无效事件引用。这是异常诊断，不是聚类准确率；算法优劣必须通过人工标注黄金集评价。
+
+
+## S03 事件识别 × S05 消融评测（实验分支）
+
+研究设计和标注流程：[EVENTS_S03_EVAL_S05.md](docs/EVENTS_S03_EVAL_S05.md)。
+
+新模块 **不会覆盖** 当前 SQLite 事件表或既有 data/ 静态快照。它比较三种离线算法：
+B0 旧版主题连通分量、B1 候选边连通聚类、B2 具备跨成员一致性约束的聚类。
+
+```bash
+python eval/run_event_ablations.py --fixture eval/datasets/synthetic_event_gold.json
+python eval/run_event_ablations.py --input data/news_items.jsonl
+python eval/make_annotation_queue.py --input data/news_items.jsonl --output /tmp/event-pairs.jsonl --limit 100
+```
+
+**重要：** 虚构样本的 F1 只验证测试集行为；历史新闻没有人工金标时，不输出准确率或召回率。实验中的事件 ID 是临时成员哈希，不是生产级稳定事件身份。
