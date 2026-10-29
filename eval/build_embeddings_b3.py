@@ -6,10 +6,13 @@ allowed. Keep vectors outside Git, record the exact source and model revision.
 """
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 from db.semantic_recall_b3 import _validate_vectors, input_sha256
 from db.event_clustering_v3 import parse_articles
