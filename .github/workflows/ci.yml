@@ -31,6 +31,20 @@ jobs:
           python db/main.py --help
           python scraper/main.py --help
 
+  event-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Synthetic gold ablations (not real-world accuracy)
+        run: python eval/run_event_ablations.py --fixture eval/datasets/synthetic_event_gold.json
+      - name: Read-only historical cluster diagnostics
+        run: python eval/run_event_ablations.py --input data/news_items.jsonl
+      - name: Generate unlabeled reviewer queue
+        run: python eval/make_annotation_queue.py --output /tmp/event-pairs.jsonl --limit 10
+
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
