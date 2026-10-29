@@ -398,3 +398,17 @@ python eval/make_annotation_queue.py --input data/news_items.jsonl --output /tmp
 ```
 
 **重要：** 虚构样本的 F1 只验证测试集行为；历史新闻没有人工金标时，不输出准确率或召回率。实验中的事件 ID 是临时成员哈希，不是生产级稳定事件身份。
+
+
+## B3 语义召回 + 事件中心匹配（实验功能）
+
+设计文档：[EVENTS_B3_SEMANTIC_RECALL.md](docs/EVENTS_B3_SEMANTIC_RECALL.md)。
+
+- 在 S03/S05 的 B0–B2 对照基础上，B3 增加带来源哈希和模型修订号的离线 Embedding、时间窗口 Top-K 语义召回、兼容性校验与事件中心聚类。
+- 所有路径均为只读 Shadow 实验；不会覆盖既有事件、修改数据库或更换线上 Dashboard。
+- 真实语义实验必须显式提供向量文件；CI 只运行不依赖模型的单元测试以及**人为从虚构金标生成的模拟向量测试**，严禁将模拟结果当作真实算法指标。
+
+    python eval/run_b3_experiment.py --fixture eval/datasets/synthetic_event_gold.json --oracle-demo
+    python eval/run_b3_experiment.py --input data/news_items.jsonl --vectors /tmp/xwl-embeddings.json
+
+真实人工金标仍未建立，B3 尚未经过真实精度/召回验证。
