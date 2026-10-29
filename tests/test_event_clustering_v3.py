@@ -5,13 +5,14 @@ from pathlib import Path
 import unittest
 
 from db.event_clustering_v3 import (
-    candidate_edges, cluster, constrained_clusters, legacy_clusters,
+    blocked_pair_ids, candidate_edges, cluster, constrained_clusters, legacy_clusters,
     parse_articles, preview_event_id,
 )
 from eval.clustering_metrics import (
-    bcubed_metrics, label_partition, pairwise_metrics, partition_from_gold,
+    bcubed_metrics, label_partition, pairwise_metrics, pair_retrieval_metrics, partition_from_gold,
 )
 from eval.run_event_ablations import load_inputs, run_ablations
+from eval.make_annotation_queue import make_queue
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "eval" / "datasets" / "synthetic_event_gold.json"
@@ -66,6 +67,23 @@ class EventClusteringTests(unittest.TestCase):
             label_partition(gold[:-1], self.by_name)
         with self.assertRaisesRegex(ValueError, "unknown or duplicated event membership"):
             label_partition(gold + [("a1",)], self.by_name)
+
+    def test_blocking_recall_has_explicit_gold_metric(self):
+        gold = partition_from_gold(self.labels, self.by_name)
+        retrieval = pair_retrieval_metrics(gold, blocked_pair_ids(self.items), self.by_name)
+        self.assertGreaterEqual(retrieval["retrieved_pairs"], retrieval["tp"])
+        self.assertTrue(0 <= retrieval["recall"] <= 1)
+        pair = pair_retrieval_metrics([("a","b","c")], {("a","b")}, ("a","b","c"))
+        self.assertEqual(pair["recall"], round(1/3, 6))
+
+    def test_stratified_review_queue_is_unlabeled_and_reproducible(self):
+        first = make_queue(self.items, limit=12, seed=17)
+        self.assertEqual(first, make_queue(list(reversed(self.items)), limit=12, seed=17))
+        self.assertEqual(len({(r["left_id"],r["right_id"]) for r in first}),len(first))
+        self.assertTrue(all(r["reviewer_1"]["label"] is None for r in first))
+        self.assertTrue(all(r["reviewer_2"]["label"] is None for r in first))
+        self.assertIn("model_positive", {r["sampling_stratum"] for r in first})
+        self.assertIn("topical_unmatched", {r["sampling_stratum"] for r in first})
 
     def test_synthetic_metric_known_value(self):
         ids = ["a", "b", "c"]
