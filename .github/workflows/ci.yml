@@ -45,6 +45,23 @@ jobs:
       - name: Generate unlabeled reviewer queue
         run: python eval/make_annotation_queue.py --output /tmp/event-pairs.jsonl --limit 10
 
+  b3-shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Synthetic B3 oracle demo (explicit gold-label leakage)
+        run: |
+          python eval/run_b3_experiment.py \
+            --fixture eval/datasets/synthetic_event_gold.json \
+            --oracle-demo --output /tmp/b3-synthetic-oracle.json
+      - name: B3 provenance and semantic unit tests
+        run: python -m unittest tests.test_semantic_recall_b3 -v
+      - name: Embedding CLI help without optional model dependency
+        run: python eval/build_embeddings_b3.py --help
+
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
