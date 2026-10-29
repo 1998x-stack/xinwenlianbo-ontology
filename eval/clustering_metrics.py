@@ -92,3 +92,31 @@ def partition_diagnostics(clusters, articles):
         "maximum_cluster_span_days": max(spans, default=0),
         "size_histogram": dict(sorted(Counter(sizes).items())),
     }
+
+
+
+def pair_retrieval_metrics(gold, retrieved_pairs, expected_ids):
+    """Recall and purity of explicitly retrieved pairs before clustering."""
+    ids = tuple(sorted(expected_ids))
+    labels = label_partition(gold, ids)
+    valid = set(ids)
+    pairs = set()
+    for left, right in retrieved_pairs:
+        if left not in valid or right not in valid or left == right:
+            raise ValueError(f"invalid candidate pair: {left!r}, {right!r}")
+        pairs.add(tuple(sorted((left, right))))
+    gold_group_size = Counter(labels.values())
+    positives = sum(count * (count - 1) // 2 for count in gold_group_size.values())
+    tp = sum(labels[left] == labels[right] for left, right in pairs)
+    false_positive = len(pairs) - tp
+    false_negative = positives - tp
+    precision = tp / len(pairs) if pairs else (1.0 if positives == 0 else 0.0)
+    recall = tp / positives if positives else 1.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {
+        "retrieved_pairs": len(pairs),
+        "gold_positive_pairs": positives,
+        "tp": tp, "fp": false_positive, "fn": false_negative,
+        "precision": round(precision, 6), "recall": round(recall, 6),
+        "f1": round(f1, 6),
+    }
