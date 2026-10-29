@@ -267,7 +267,8 @@ Return JSON:
             text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
         return json.loads(text)
     except json.JSONDecodeError:
-        return {"name": f"事件_{event_id[:8]}", "type": "political", "summary": result_text[:300], "importance": "notable"}
+        # Invalid model output must not be promoted as a verified event profile.
+        return None
 
 
 def generate_event_report(conn, event_id):
@@ -489,6 +490,11 @@ def _run_event_pipeline_in_stage(db_path, time_window_days=7, min_items=2, concu
             if f.result():
                 done += 1
     print(f"Profiled {done}/{len(event_ids)} events")
+    if done != len(event_ids):
+        raise RuntimeError(
+            f"Event profiles incomplete: {done}/{len(event_ids)}; "
+            "refusing to publish a partial event generation"
+        )
 
     # 5. Compute metrics as of the newest broadcast, not wall-clock time.
     # Historical replays are deterministic even if executed months later.
