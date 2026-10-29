@@ -16,9 +16,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from db.event_clustering_v3 import cluster, parse_articles, preview_event_id
+from db.event_clustering_v3 import blocked_pair_ids, cluster, parse_articles, preview_event_id
 from eval.clustering_metrics import (
-    bcubed_metrics, pairwise_metrics, partition_diagnostics, partition_from_gold,
+    bcubed_metrics, pairwise_metrics, pair_retrieval_metrics, partition_diagnostics, partition_from_gold,
 )
 
 
@@ -59,6 +59,12 @@ def run_ablations(items, *, gold=None, kind="unlabeled_historical",
             "Preview event IDs are membership hashes and MUST NOT replace production event IDs.",
         ],
     }
+    blocked = blocked_pair_ids(items, window_days=window_days)
+    report["candidate_blocking"] = {
+        "pairs": len(blocked),
+        "gold_retrieval": pair_retrieval_metrics(ground_truth, blocked, ids)
+        if ground_truth is not None else None,
+    }
     for variant in ("legacy", "connected", "constrained"):
         clusters, edges = cluster(
             items, variant=variant, window_days=window_days,
@@ -74,9 +80,13 @@ def run_ablations(items, *, gold=None, kind="unlabeled_historical",
             ][:15],
         }
         if ground_truth is not None:
+            entry["edge_retrieval"] = (pair_retrieval_metrics(
+                ground_truth, ((e.left, e.right) for e in edges), ids
+            ) if variant != "legacy" else None)
             entry["gold_pairwise"] = pairwise_metrics(ground_truth, clusters, ids)
             entry["gold_bcubed"] = bcubed_metrics(ground_truth, clusters, ids)
         else:
+            entry["edge_retrieval"] = None
             entry["gold_pairwise"] = None
             entry["gold_bcubed"] = None
         report["variants"][variant] = entry
@@ -107,11 +117,13 @@ def main():
         temporary.replace(args.output)
     summary = {
         "dataset_kind": report["dataset_kind"], "items": len(items),
+        "candidate_blocking": report["candidate_blocking"],
         "variants": {
             name: {
                 "diagnostics": entry["diagnostics"],
                 "gold_pairwise": entry["gold_pairwise"],
                 "gold_bcubed": entry["gold_bcubed"],
+                "edge_retrieval": entry["edge_retrieval"],
             } for name, entry in report["variants"].items()
         },
         "note": "No event data was written to SQLite or data/*.json",
