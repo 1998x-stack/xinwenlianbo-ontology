@@ -23,8 +23,8 @@ class ReviewedGoldTests(unittest.TestCase):
         self.queue = complete_review_queue(self.records, self.ids)
         self.digest = hashlib.sha256(b"fixture").hexdigest()
         for row in self.queue:
-            row["reviewer_1"].update(id="reviewer-A", label="DIFFERENT_EVENT")
-            row["reviewer_2"].update(id="reviewer-B", label="DIFFERENT_EVENT")
+            row["reviewer_1"].update(id="reviewer-A", label="DIFFERENT_EVENT", evidence="reviewed source segment A")
+            row["reviewer_2"].update(id="reviewer-B", label="DIFFERENT_EVENT", evidence="reviewed source segment B")
         first = next(row for row in self.queue if set([row["left_id"], row["right_id"]]) == {"a", "b"})
         first["reviewer_1"]["label"] = "SAME_EVENT"
         first["reviewer_2"]["label"] = "SAME_EVENT"
@@ -46,6 +46,12 @@ class ReviewedGoldTests(unittest.TestCase):
                        source_sha=self.digest, guideline_version="test-v1")
         self.queue[0]["reviewer_1"]["label"] = None
         with self.assertRaisesRegex(ValueError, "not conclusively reviewed"):
+            build_gold(self.records, self.queue, self.ids,
+                       source_sha=self.digest, guideline_version="test-v1")
+
+    def test_gold_requires_human_source_evidence(self):
+        self.queue[0]["reviewer_1"]["evidence"] = None
+        with self.assertRaisesRegex(ValueError, "reviewer evidence missing"):
             build_gold(self.records, self.queue, self.ids,
                        source_sha=self.digest, guideline_version="test-v1")
 
