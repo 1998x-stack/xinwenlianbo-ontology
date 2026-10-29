@@ -59,6 +59,8 @@ jobs:
             --oracle-demo --output /tmp/b3-synthetic-oracle.json
       - name: B3 provenance and semantic unit tests
         run: python -m unittest tests.test_semantic_recall_b3 -v
+      - name: Embedding CLI help without optional model dependency
+        run: python eval/build_embeddings_b3.py --help
 
   browser:
     runs-on: ubuntu-latest
