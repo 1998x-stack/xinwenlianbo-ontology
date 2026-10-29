@@ -1,0 +1,485 @@
+{
+  "fixture_type": "synthetic",
+  "description": "Hand-authored fictional cases for regression only; never report as empirical accuracy on real broadcasts.",
+  "records": [
+    {
+      "news_id": "a1",
+      "title": "甲省防汛应急响应启动",
+      "broadcast_date": "2026-09-01",
+      "topics": [
+        {
+          "name": "灾害防控"
+        },
+        {
+          "name": "社会"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "甲省应急管理厅"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "甲省",
+        "防汛",
+        "应急响应"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "a2",
+      "title": "甲省防汛应急响应持续推进",
+      "broadcast_date": "2026-09-02",
+      "topics": [
+        {
+          "name": "灾害防控"
+        },
+        {
+          "name": "社会"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "甲省应急管理厅"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "甲省",
+        "防汛",
+        "应急响应"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "a3",
+      "title": "甲省防汛应急响应进入恢复阶段",
+      "broadcast_date": "2026-09-03",
+      "topics": [
+        {
+          "name": "灾害防控"
+        },
+        {
+          "name": "社会"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "甲省应急管理厅"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "甲省",
+        "防汛",
+        "应急响应"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "b1",
+      "title": "乙省防汛应急响应启动",
+      "broadcast_date": "2026-09-01",
+      "topics": [
+        {
+          "name": "灾害防控"
+        },
+        {
+          "name": "社会"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "乙省应急管理厅"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "乙省",
+        "防汛",
+        "应急响应"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "b2",
+      "title": "乙省防汛应急响应持续推进",
+      "broadcast_date": "2026-09-02",
+      "topics": [
+        {
+          "name": "灾害防控"
+        },
+        {
+          "name": "社会"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "乙省应急管理厅"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "乙省",
+        "防汛",
+        "应急响应"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "c1",
+      "title": "北斗新卫星发射取得成功",
+      "broadcast_date": "2026-09-01",
+      "topics": [
+        {
+          "name": "航天"
+        },
+        {
+          "name": "科技"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "中国航天研究院"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "北斗",
+        "卫星",
+        "发射"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "c2",
+      "title": "北斗新卫星发射任务圆满完成",
+      "broadcast_date": "2026-09-02",
+      "topics": [
+        {
+          "name": "航天"
+        },
+        {
+          "name": "科技"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "中国航天研究院"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "北斗",
+        "卫星",
+        "发射"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "c3",
+      "title": "北斗新卫星发射后完成在轨检查",
+      "broadcast_date": "2026-09-03",
+      "topics": [
+        {
+          "name": "航天"
+        },
+        {
+          "name": "科技"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "中国航天研究院"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "北斗",
+        "卫星",
+        "发射"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "d1",
+      "title": "甲国与乙国举行贸易合作会谈",
+      "broadcast_date": "2026-09-02",
+      "topics": [
+        {
+          "name": "外交"
+        },
+        {
+          "name": "经济"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "甲国贸易代表团"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "甲国",
+        "乙国",
+        "贸易会谈"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "d2",
+      "title": "甲国与乙国贸易合作会谈取得进展",
+      "broadcast_date": "2026-09-03",
+      "topics": [
+        {
+          "name": "外交"
+        },
+        {
+          "name": "经济"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "甲国贸易代表团"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "甲国",
+        "乙国",
+        "贸易会谈"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "e1",
+      "title": "甲省启动智慧农业示范项目",
+      "broadcast_date": "2026-09-04",
+      "topics": [
+        {
+          "name": "科技"
+        },
+        {
+          "name": "经济"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "甲省农业委员会"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "甲省",
+        "农业",
+        "示范项目"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "e2",
+      "title": "甲省智慧农业示范项目进入试运行",
+      "broadcast_date": "2026-09-05",
+      "topics": [
+        {
+          "name": "科技"
+        },
+        {
+          "name": "经济"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "甲省农业委员会"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "甲省",
+        "农业",
+        "示范项目"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "f1",
+      "title": "乙省启动智慧农业示范项目",
+      "broadcast_date": "2026-09-04",
+      "topics": [
+        {
+          "name": "科技"
+        },
+        {
+          "name": "经济"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "乙省农业委员会"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "乙省",
+        "农业",
+        "示范项目"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "f2",
+      "title": "乙省智慧农业示范项目进入试运行",
+      "broadcast_date": "2026-09-05",
+      "topics": [
+        {
+          "name": "科技"
+        },
+        {
+          "name": "经济"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "乙省农业委员会"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "乙省",
+        "农业",
+        "示范项目"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "g1",
+      "title": "国内联播快讯",
+      "broadcast_date": "2026-09-01",
+      "topics": [
+        {
+          "name": "社会"
+        },
+        {
+          "name": "经济"
+        }
+      ],
+      "organizations": [],
+      "people": [],
+      "keywords": [],
+      "tags": {}
+    },
+    {
+      "news_id": "h1",
+      "title": "国内联播快讯",
+      "broadcast_date": "2026-09-02",
+      "topics": [
+        {
+          "name": "社会"
+        },
+        {
+          "name": "经济"
+        }
+      ],
+      "organizations": [],
+      "people": [],
+      "keywords": [],
+      "tags": {}
+    },
+    {
+      "news_id": "i1",
+      "title": "甲省防汛技术设备产业升级",
+      "broadcast_date": "2026-09-03",
+      "topics": [
+        {
+          "name": "灾害防控"
+        },
+        {
+          "name": "科技"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "甲省工业研究所"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "防汛",
+        "技术",
+        "产业升级"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "j1",
+      "title": "甲国与乙国举行文化交流活动",
+      "broadcast_date": "2026-09-02",
+      "topics": [
+        {
+          "name": "外交"
+        },
+        {
+          "name": "文化"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "甲国文化代表团"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "甲国",
+        "乙国",
+        "文化交流"
+      ],
+      "tags": {}
+    },
+    {
+      "news_id": "k1",
+      "title": "科学家发布新材料研究成果",
+      "broadcast_date": "2026-09-03",
+      "topics": [
+        {
+          "name": "科技"
+        },
+        {
+          "name": "科研"
+        }
+      ],
+      "organizations": [
+        {
+          "name": "研究院"
+        }
+      ],
+      "people": [],
+      "keywords": [
+        "新材料",
+        "研究成果"
+      ],
+      "tags": {}
+    }
+  ],
+  "labels": {
+    "a1": "flood_a",
+    "a2": "flood_a",
+    "a3": "flood_a",
+    "b1": "flood_b",
+    "b2": "flood_b",
+    "c1": "space_c",
+    "c2": "space_c",
+    "c3": "space_c",
+    "d1": "trade_d",
+    "d2": "trade_d",
+    "e1": "farm_e",
+    "e2": "farm_e",
+    "f1": "farm_f",
+    "f2": "farm_f",
+    "g1": "digest_g",
+    "h1": "digest_h",
+    "i1": "technology_i",
+    "j1": "culture_j",
+    "k1": "research_k"
+  }
+}
