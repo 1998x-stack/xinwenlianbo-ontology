@@ -190,6 +190,11 @@ def candidate_edges(
         shared_topics = tuple(sorted((left.topics & right.topics) - generic_topics))
         shared_people = tuple(sorted(left.people & right.people))
         shared_orgs = tuple(sorted(left.organizations & right.organizations))
+        # Conservative anti-merge rule: mutually exclusive named organizations
+        # need independent actor evidence, not just a generic common topic.
+        if (left.organizations and right.organizations
+                and not shared_orgs and not shared_people):
+            continue
         overlap = grams(left.title) & grams(right.title)
         lex = jaccard(grams(left.title), grams(right.title))
         kw = jaccard(left.keywords, right.keywords)
