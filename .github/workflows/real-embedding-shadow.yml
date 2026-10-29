@@ -61,15 +61,17 @@ jobs:
           assert r["kind"] == "unlabeled_historical"
           assert r["embedding_provenance"]["model_id"] == "BAAI/bge-small-zh-v1.5"
           assert r["published_to_production"] is False
-          for key in ("B2_constrained","B3_semantic_centroid"):
+          for key in ("B2_constrained","B3_centroid_rule_candidates","B3_semantic_centroid"):
               assert r[key]["pairwise"] is None and r[key]["bcubed"] is None
+          assert r["candidate_retrieval"]["semantic_only_additional_pairs"] <= r["candidate_retrieval"]["semantic_pairs"]
           summary={
               "dataset_kind":r["kind"],
               "model_id":r["embedding_provenance"]["model_id"],
               "model_revision":r["embedding_provenance"]["revision"],
               "candidate_retrieval":r["candidate_retrieval"],
               "B2":r["B2_constrained"]["diagnostics"],
-              "B3":r["B3_semantic_centroid"]["diagnostics"],
+              "B3_rule_candidates_only":r["B3_centroid_rule_candidates"]["diagnostics"],
+              "B3_semantic_union":r["B3_semantic_centroid"]["diagnostics"],
               "real_world_accuracy":None,
               "warning":"Unlabeled historical corpus; no precision/recall claim."
           }
