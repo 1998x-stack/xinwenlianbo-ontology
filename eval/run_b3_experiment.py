@@ -24,6 +24,8 @@ from eval.clustering_metrics import (
     partition_diagnostics, partition_from_gold,
 )
 from eval.run_event_ablations import load_inputs
+from eval.reviewed_pair_scoring import membership_pairs, reviewed_pair_metrics
+from eval.validate_annotations import validate_reviews
 
 
 def oracle_demo_vectors(labels):
@@ -36,7 +38,7 @@ def oracle_demo_vectors(labels):
 
 def compare(items, embeddings, *, kind, gold=None, manifest=None, window_days=7,
             top_k=8, min_similarity=0.74, member_similarity=0.70,
-            centroid_similarity=0.78):
+            centroid_similarity=0.78, review_queue=None):
     ids = [a.news_id for a in items]
     gold_clusters = partition_from_gold(gold, ids) if gold is not None else None
     baseline, _ = cluster(items, variant="constrained", window_days=window_days)
@@ -63,7 +65,15 @@ def compare(items, embeddings, *, kind, gold=None, manifest=None, window_days=7,
             entry["bcubed"] = bcubed_metrics(gold_clusters, clusters, ids)
         return entry
 
+    review_report = None
+    if review_queue is not None:
+        review_report = {
+            "review_validation": validate_reviews(review_queue),
+            "B2": reviewed_pair_metrics(review_queue, membership_pairs(baseline)),
+            "B3": reviewed_pair_metrics(review_queue, membership_pairs(pred)),
+        }
     return {
+        "reviewed_pair_evaluation": review_report,
         "kind": kind,
         "warning": ("ORACLE-LABEL-LEAKAGE: no real-world metric"
                     if kind == "synthetic_oracle_demo"
@@ -99,6 +109,7 @@ def main():
     parser.add_argument("--oracle-demo", action="store_true",
                         help="Synthetic fixture ONLY; uses gold labels to fabricate perfect vectors")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--reviews", type=Path, help="Double-reviewed/adjudicated JSONL queue")
     parser.add_argument("--window-days", type=int, default=7)
     parser.add_argument("--top-k", type=int, default=8)
     parser.add_argument("--min-similarity", type=float, default=0.74)
@@ -128,8 +139,16 @@ def main():
     else:
         manifest_obj, vectors = load_embeddings(args.vectors, items, source_path=source_path)
         manifest = vars(manifest_obj)
+    reviews = None
+    if args.reviews:
+        with args.reviews.open(encoding="utf-8") as handle:
+            reviews = [json.loads(line) for line in handle if line.strip()]
+        valid_ids = {item.news_id for item in items}
+        if any(row["left_id"] not in valid_ids or row["right_id"] not in valid_ids for row in reviews):
+            parser.error("review queue references articles missing from input snapshot")
     result = compare(
         items, vectors, kind=kind, gold=gold, manifest=manifest,
+        review_queue=reviews,
         window_days=args.window_days, top_k=args.top_k,
         min_similarity=args.min_similarity,
         member_similarity=args.member_similarity,
