@@ -171,6 +171,15 @@ def _candidate_pairs(items: list[Article], *, window_days: int = 7):
     return pairs, generic_topics
 
 
+
+
+def blocked_pair_ids(items: list[Article], *, window_days: int = 7) -> set[tuple[str, str]]:
+    """Inspect candidate-blocking recall separately from pairwise decisions."""
+    if window_days < 0:
+        raise ValueError("window_days must be nonnegative")
+    pairs, _ = _candidate_pairs(items, window_days=window_days)
+    return pairs
+
 def candidate_edges(
     items: list[Article],
     *,
