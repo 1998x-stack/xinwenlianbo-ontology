@@ -168,3 +168,34 @@ conflicts, agreed definitive pairs, adjudications and Cohen's kappa when
 defined. UNSURE remains abstention. A completed *pair* review is not
 automatically a cluster-level gold partition. The reviewer workflow must
 enforce blindness operationally; one shared JSONL file does not do that alone.
+
+
+## 11. Domain semantics: report, episode, event and issue are different
+
+A news segment is an observation in the *broadcast*, not the event itself.
+Before introducing persistent IDs, model four levels:
+
+- **NewsSegment**: what the broadcast published (date/order/source/excerpt).
+- **Event**: a bounded occurrence, such as one meeting, announcement,
+  agreement, launch, rescue operation or opening ceremony.
+- **Episode**: a documented phase in a larger process (negotiation round,
+  visit day, policy implementation milestone).
+- **Issue/Storyline**: a long-running topic or process, which may contain many
+  separate events and news segments across months or years.
+
+Link types should be explicit: segment REPORTS_ON event, event PART_OF
+storyline, episode STAGE_OF storyline, event INVOLVES actor, and claim
+SUPPORTED_BY source text. Simply sharing TOPIC or PERSON must never create a
+same-event identity edge.
+
+A 5-day visit can contain a departure, meeting, banquet and arrival at home;
+these are **different subevents** under one visit storyline. A correct model
+may group segments describing the same meeting without collapsing all trip
+coverage into one atomic meeting event. This distinction should be part of
+the human annotation rubric; label SAME_EVENT only when atomic event scope
+matches, and track RELATED_NOT_SAME when two events share a storyline.
+
+The next-stage persisted identity registry must assign immutable Event UUIDs.
+Membership changes, source revisions, alias correction and merge/split
+decisions are separate audited operations. Do not reuse preview membership
+hashes or replace a row by silently changing its meaning.
