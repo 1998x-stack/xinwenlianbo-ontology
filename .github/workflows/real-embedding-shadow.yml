@@ -1,0 +1,105 @@
+name: Real BGE Embedding Shadow Benchmark
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/real-embedding-shadow.yml"
+      - "eval/**"
+      - "db/semantic_recall_b3.py"
+      - "db/event_clustering_v3.py"
+      - "data/news_items.jsonl"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-bge-shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      TOKENIZERS_PARALLELISM: "false"
+      PYTHONHASHSEED: "0"
+      MODEL_REVISION: "7999e1d3359715c523056ef9478215996d62a620"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned CPU-only PyTorch
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1
+      - name: Install pinned semantic dependencies
+        run: |
+          python -m pip install sentence-transformers==3.3.1 transformers==4.46.3 huggingface-hub==0.27.1
+      - name: Validate historical source and fixture
+        run: |
+          python -m unittest tests.test_reviewed_gold_builder tests.test_semantic_recall_b3 -v
+      - name: Generate real model embeddings (NOT oracle)
+        run: |
+          mkdir -p output
+          python eval/build_embeddings_b3.py \
+            --input data/news_items.jsonl \
+            --output output/embeddings-bge-small-zh-v1.5.json \
+            --model BAAI/bge-small-zh-v1.5 \
+            --revision "$MODEL_REVISION" \
+            --device cpu --batch-size 16 --allow-network \
+            > output/model-provenance.log
+      - name: Compare B2 and B3 on real vectors (unlabeled historical set)
+        run: |
+          python eval/run_b3_experiment.py \
+            --input data/news_items.jsonl \
+            --vectors output/embeddings-bge-small-zh-v1.5.json \
+            --output output/b3-real-shadow.json \
+            > output/full-shadow-stdout.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("output/b3-real-shadow.json").read_text(encoding="utf-8"))
+          assert r["kind"] == "unlabeled_historical"
+          assert r["embedding_provenance"]["model_id"] == "BAAI/bge-small-zh-v1.5"
+          assert r["published_to_production"] is False
+          for key in ("B2_constrained","B3_centroid_rule_candidates","B3_semantic_centroid"):
+              assert r[key]["pairwise"] is None and r[key]["bcubed"] is None
+          assert r["candidate_retrieval"]["semantic_only_additional_pairs"] <= r["candidate_retrieval"]["semantic_pairs"]
+          summary={
+              "dataset_kind":r["kind"],
+              "model_id":r["embedding_provenance"]["model_id"],
+              "model_revision":r["embedding_provenance"]["revision"],
+              "candidate_retrieval":r["candidate_retrieval"],
+              "B2":r["B2_constrained"]["diagnostics"],
+              "B3_rule_candidates_only":r["B3_centroid_rule_candidates"]["diagnostics"],
+              "B3_semantic_union":r["B3_semantic_centroid"]["diagnostics"],
+              "real_world_accuracy":None,
+              "warning":"Unlabeled historical corpus; no precision/recall claim."
+          }
+          Path("output/summary.json").write_text(json.dumps(summary,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(summary,ensure_ascii=False,indent=2))
+          PY
+      - name: Generate small exhaustive review packet (all labels NULL)
+        run: |
+          python eval/select_review_subset.py \
+            --input data/news_items.jsonl \
+            --start 2026-06-07 --end 2026-06-09 --count 12 \
+            --output output/review-selected-ids.json
+          python eval/build_complete_review_queue.py \
+            --input data/news_items.jsonl \
+            --selection output/review-selected-ids.json \
+            --output output/review-pairs-UNLABELED.jsonl
+          python eval/validate_annotations.py output/review-pairs-UNLABELED.jsonl \
+            > output/review-validation.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path("output/review-validation.json").read_text())
+          assert x["ready_definitive_pairs"] == 0 and x["unreviewed"] == 66
+          print("Review packet contains 12 historical items, 66 pairs, 0 fabricated labels")
+          PY
+      - name: Upload reproducible model outputs and review packet
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-bge-shadow-${{ github.sha }}
+          path: output/
+          retention-days: 14

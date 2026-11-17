@@ -412,3 +412,12 @@ python eval/make_annotation_queue.py --input data/news_items.jsonl --output /tmp
     python eval/run_b3_experiment.py --input data/news_items.jsonl --vectors /tmp/xwl-embeddings.json
 
 真实人工金标仍未建立，B3 尚未经过真实精度/召回验证。
+
+
+## 下一阶段：真实 Embedding 与人工金标流水线
+
+详见 [REAL_EMBEDDING_GOLD_PIPELINE.md](docs/REAL_EMBEDDING_GOLD_PIPELINE.md)。
+
+实验工作流位于 .github/workflows/real-embedding-shadow.yml，在 GitHub Actions 使用固定提交 SHA 的真实中文 Embedding 模型，计算历史新闻向量，输出 B2/B3 只读对比报告。同时生成 12 篇历史报道的全部 66 组待复核新闻对（初始标签均为 null）。
+
+人工完成双人独立复核、分歧裁决和完整事件身份标注后，才允许运行 eval/build_reviewed_gold.py 导出真实标注子集。没有独立标注就不得报告准确率、召回率或宣称模型提升，实验不会更新生产事件。

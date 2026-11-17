@@ -49,6 +49,11 @@ def compare(items, embeddings, *, kind, gold=None, manifest=None, window_days=7,
     blocked = blocked_pair_ids(items, window_days=window_days)
     semantic_pairs_ids = {(e.left, e.right) for e in semantic}
     union = blocked | semantic_pairs_ids
+    centroid_block_only = centroid_clusters(
+        items, embeddings, candidate_pairs=blocked,
+        window_days=window_days, min_member_similarity=member_similarity,
+        min_centroid_similarity=centroid_similarity,
+    )
     pred = centroid_clusters(
         items, embeddings, candidate_pairs=union,
         window_days=window_days, min_member_similarity=member_similarity,
@@ -70,7 +75,8 @@ def compare(items, embeddings, *, kind, gold=None, manifest=None, window_days=7,
         review_report = {
             "review_validation": validate_reviews(review_queue),
             "B2": reviewed_pair_metrics(review_queue, membership_pairs(baseline)),
-            "B3": reviewed_pair_metrics(review_queue, membership_pairs(pred)),
+            "B3_rule_candidates": reviewed_pair_metrics(review_queue, membership_pairs(centroid_block_only)),
+            "B3_semantic_union": reviewed_pair_metrics(review_queue, membership_pairs(pred)),
         }
     return {
         "reviewed_pair_evaluation": review_report,
@@ -90,11 +96,13 @@ def compare(items, embeddings, *, kind, gold=None, manifest=None, window_days=7,
             "baseline_pairs": len(blocked),
             "semantic_pairs": len(semantic_pairs_ids),
             "union_pairs": len(union),
+            "semantic_only_additional_pairs": len(semantic_pairs_ids - blocked),
             "blocking_gold": pair_retrieval_metrics(gold_clusters, blocked, ids) if gold_clusters is not None else None,
             "semantic_gold": pair_retrieval_metrics(gold_clusters, semantic_pairs_ids, ids) if gold_clusters is not None else None,
             "union_gold": pair_retrieval_metrics(gold_clusters, union, ids) if gold_clusters is not None else None,
         },
         "B2_constrained": output(baseline),
+        "B3_centroid_rule_candidates": output(centroid_block_only),
         "B3_semantic_centroid": output(pred),
         "published_to_production": False,
     }
